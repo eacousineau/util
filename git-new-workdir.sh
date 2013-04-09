@@ -79,8 +79,7 @@ fi
 
 get_git_dir()
 {
-	local dir=$( (cd $1 && git rev-parse --git-dir ) 2>/dev/null )
-	echo $(cd $1/$dir && pwd)
+	( cd $1 && git rev-parse --git-dir ) 2>/dev/null 
 }
 git_dir_check_hack()
 {
@@ -91,7 +90,15 @@ git_dir_check_hack()
 # want to make sure that what is pointed to has a .git directory ...
 orig_gitdir=$(get_git_dir "$orig_workdir") || die "Not a git repository: \"$orig_workdir\""
 # make sure the links use full paths
-# orig_gitdir=$(cd "$orig_gitdir"; pwd)
+case "$orig_gitdir" in
+.git)
+	orig_gitdir="$orig_workdir/.git"
+	;;
+.)
+	orig_gitdir=$orig_workdir
+	;;
+esac
+orig_gitdir=$(readlink -f $orig_gitdir)
 
 # don't link to a configured bare repository
 isbare=$(git --git-dir="$orig_gitdir" config --bool --get core.bare)
