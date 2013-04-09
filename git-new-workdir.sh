@@ -1,23 +1,8 @@
 #!/bin/sh
 
-# TODO Supermodule stuff still does not work out. Need to solve.
-
-# TODO Make it an option to link the submodule git-dir's in different submodules for ease of distributed development.
-# ... Would need to strip out work tree, setting, and then set it to the new structures...
-# Very constrained situation. Check if it is at root level?
-
-# TODO Seems like $(git rev-parse --git-dir) in a new workdir submodule still yields original module file path.
-# Is that OK? Meh.
-
-# TODO To do this for a supermodule, need to go through each submodule that's in the index.
-# 1.	Get it's orig_gitdir
-# 2.	Do git-new-workdir for it, but will need to have it such that the work tree is the same as before.
-#		So don't check things out, wait for submodule update to do that...
-#		****Just need to do the git-new-workdir for the gitdir only, no checking out. Config can stay the same -- YAY!
-#	How to get the existing submodules relative path? By maintaining the same one it had in the supermodule...
-#	So really, we would keep the config...
-# 3.	Since git rev-parse --git-dir seems to resolve symlinks, will nee
-# NOTE: Is not robust for remotes with relative paths...
+# Supermodule stuff works
+# TODO Add a '--update-linked-config' option to go through and update linked configs?
+# NOTE: Not robust to submodules being created after the link. New workdirs should be disposable.
 
 bin_path=$0
 bin=$(basename $bin_path)
@@ -203,6 +188,6 @@ then
 	# Update submodules
 	if test -n "$is_supermodule"
 	then
-		git submodule update
+		git submodule update --recursive
 	fi
 fi
