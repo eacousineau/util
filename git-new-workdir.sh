@@ -68,7 +68,6 @@ get_git_dir()
 }
 git_dir_check_hack()
 {
-	echo "Hack check: $1"
 	( cd $1 && test -e HEAD -a -e config -a -d refs )
 }
 
@@ -106,9 +105,7 @@ then
 	die "destination directory '$new_workdir' already exists."
 fi
 
-echo "Git dir: $orig_gitdir"
-echo "New gitdir: $new_gitdir"
-echo "New workdir: $new_workdir"
+echo "[ Old -> New ]\n\t$orig_workdir\n\t$new_workdir"
 
 # create the gitdir
 mkdir -p "$new_gitdir" || die "unable to create \"$new_gitdir\"!"
@@ -132,7 +129,7 @@ new_config="$new_gitdir/$x"
 # Allow submodules to be checked out
 if test -z "$always_link_config" && git config -f "$orig_config" core.worktree > /dev/null
 then
-	echo "[ Note ] Copying .git/config and unsetting core.worktree"
+	echo "\t[ Note ] Copying .git/config and unsetting core.worktree"
 	cp "$orig_gitdir/$x" "$new_config"
 	git config -f "$new_config" --unset core.worktree
 else
@@ -147,7 +144,7 @@ if test -d "$orig_modules" -a -z "$skip_submodules"
 then
 	is_supermodule=1
 	# TODO Allow for directory structure... Checking if a module is 
-	echo "[ Note ] Applying $bin to .git/modules since it's a supermodule"
+	echo "\t[ Note ] Applying $bin to .git/modules since it's a supermodule"
 
 	modulate()
 	{
@@ -165,7 +162,8 @@ then
 				$bin_path --bare $recurse_flags $orig_module $new_module
 			else
 				# Other recursion
-				modulate $orig_module $new_module
+				echo "[ Submodule \"$module\" ]"
+				( modulate $orig_module $new_module )
 			fi
 			# See if it's a git module
 		done
@@ -188,6 +186,7 @@ then
 	# Update submodules
 	if test -n "$is_supermodule"
 	then
+		git submodule init
 		git submodule update --recursive
 	fi
 fi
