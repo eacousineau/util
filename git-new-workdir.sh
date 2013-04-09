@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# TODO Supermodule stuff still does not work out. Need to solve.
+
 # TODO Make it an option to link the submodule git-dir's in different submodules for ease of distributed development.
 # ... Would need to strip out work tree, setting, and then set it to the new structures...
 # Very constrained situation. Check if it is at root level?
