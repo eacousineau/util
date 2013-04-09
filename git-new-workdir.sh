@@ -4,6 +4,8 @@
 # TODO Add a '--update-linked-config' option to go through and update linked configs?
 # NOTE: Not robust to submodules being created after the link. New workdirs should be disposable.
 
+# Wait... How does this work if worktree is unset? Seems like doing submodule init or update somehow fixes that... ???
+
 bin_path=$0
 bin=$(basename $bin_path)
 
