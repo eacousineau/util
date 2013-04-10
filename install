@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Too lazy for /bin/sh
+
+clean=
+while test $# -gt 0
+do
+	case $1 in
+		--clean)
+			clean=1
+			;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+test $# -eq 0 && echo "Need to supply directory (absolute path) to put this stuff in." && exit 0
+dir=$1
+shift
+
+path=$(dirname $BASH_SOURCE)
+cd $path
+
+linkerade()
+{
+	new=$(basename $1 .sh)
+	src=~+/$1
+	dest=$dir/$new
+	if test -e "$dest" -a -n "$clean"
+	then
+		echo -e "\tRemoving $dest"
+		rm $dest
+	fi
+	echo "Linking $src -> $dest"
+	ln -s $src $dest
+}
+
+if test $# -eq 0
+then
+	scripts=$(dir *.sh)
+else
+	scripts=$@
+fi
+
+for script in $scripts
+do
+	linkerade $script
+done
