@@ -183,7 +183,7 @@ then
 	cd "$new_workdir"
 	# checkout the branch (either the same as HEAD from the original repository, or
 	# the one that was asked for)
-	git checkout -f $branch
+	git checkout -f $branch > /dev/null
 
 	# Update submodules
 	if test -n "$is_supermodule"
