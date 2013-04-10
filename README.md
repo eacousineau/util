@@ -13,4 +13,4 @@ Random bash utils, some adapted from other peeps' stuff.
 
 Run
 
-	./setup.sh ~/local/bin # Or wherever you want them to go on your $PATH
+	./install.sh ~/local/bin # Or wherever you want them to go on your $PATH

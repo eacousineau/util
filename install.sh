@@ -22,10 +22,10 @@ linkerade()
 
 if test $# -eq 0
 then
-	# Get all shell scripts (except for setup)
+	# Get all shell scripts (except for install)
 	for script in $(dir *.sh)
 	do
-		test "$script" = "setup.sh" && continue
+		test "$script" = "install.sh" && continue
 		linkerade $script
 	done
 else
