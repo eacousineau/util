@@ -8,14 +8,21 @@ bin=$(basename $bin_path)
 
 usage()
 {
-	echo "Usage: $bin [-t|--tool TOOL] [-v|--verbose] [-k|--keep] REPO REV_A REV_B"
+	echo "Usage: $bin [-t|--tool TOOL] [-d|--dir DIR] [-r|--remove] [-v|--verbose] REPO REV_A REV_B"
 	exit $1
+}
+
+die()
+{
+	echo $1 >&2
+	exit 1
 }
 
 tool=meld
 stdout=/dev/null
 stderr=/dev/stderr
-keep=
+remove=
+dir=
 
 while [ $# -gt 0 ]
 do
@@ -30,8 +37,12 @@ do
 		-h|--help)
 			usage 0
 			;;
-		-k|--keep)
-			keep=1
+		-r|--remove)
+			remove=1
+			;;
+		-d|--dir)
+			dir=$2
+			shift
 			;;
 		*)
 			break
@@ -73,13 +84,17 @@ repo_setup()
 	branch=$2
 	# Make leading structure for slashy branches
 	mkdir -p $(dirname $new)
-	git-new-workdir $repo $new $branch > $stdout 2> $stderr
+	git-new-workdir $repo $new $branch > $stdout 2> $stderr || die "Error with git-new-workdir"
 }
 
-# Create temporary directory
-temp=$(mktemp -d)
-repo_a=$temp/$rev_label_a
-repo_b=$temp/$rev_label_b
+if test -z "$dir"
+then
+	# Create temporary directory
+	template="/tmp/git-emeld.XXXXX"
+	dir=$(mktemp -d $template)
+fi
+repo_a=$dir/$rev_label_a
+repo_b=$dir/$rev_label_b
 
 echo "A ($rev_label_a)\n\t$repo_a"
 echo "B ($rev_label_b)\n\t$repo_b"
@@ -87,12 +102,12 @@ echo "B ($rev_label_b)\n\t$repo_b"
 repo_setup $repo_a $rev_a
 repo_setup $repo_b $rev_b
 
-meld $repo_a $repo_b
+$tool $repo_a $repo_b
 
-if test -z "$keep"
+if test -n "$remove"
 then
-	echo "Removing temp directory"
-	rm -rf $temp
+	echo "Removing directory: $dir"
+	rm -rf $dir
 else
-	echo "Keeping directory: $temp"
+	echo "Keeping directory: $dir"
 fi
