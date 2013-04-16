@@ -14,3 +14,4 @@ Random bash utils, some adapted from other peeps' stuff.
 Run
 
 	./install ~/local/bin # Or wherever you want them to go on your $PATH
+	./aliases # Set some git aliases
