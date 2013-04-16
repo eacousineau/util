@@ -1,13 +1,13 @@
 #!/bin/sh
 #
-# git-fer.sh: submodule foreach with option to include supermodule
+# git-sfe.sh: submodule foreach with option to include supermodule
 #
 # Lots of things copied and pasted from git-submodule.sh
 
 # Can't get something this to work: `git fer git commit -m "Some long message"` -- need to figure this out
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
-USAGE="[-s | --no-super] [-c | --constrain] [-r | --non-recursive] [-p | --post-order] <command>"
+USAGE="[-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -79,12 +79,13 @@ module_name()
 	echo "$name"
 }
 
+# TODO Match with updates to git-submodule-foreach
 cmd_foreach()
 {
 	# parse $args after "submodule ... foreach".
-	recursive=1
+	recursive=
 	post_order=
-	include_super=1
+	include_super=
 	constrain=
 	while test $# -ne 0
 	do
@@ -92,8 +93,8 @@ cmd_foreach()
 		-q|--quiet)
 			GIT_QUIET=1
 			;;
-		-r|--non-recursive)
-			recursive=
+		-r|--recursive)
+			recursive=1
 			;;
 		-p|--post-order)
 			post_order=1
@@ -101,8 +102,8 @@ cmd_foreach()
 		-c|--constrain)
 			constrain=1
 			;;
-		-s|--no-super)
-			include_super=
+		-t|--top-level)
+			include_super=1
 			;;
 		-*)
 			usage
@@ -137,7 +138,7 @@ cmd_foreach()
 		super_eval Entering "$@"
 	fi
 
-	recurse_flags="--no-super"
+	recurse_flags=""
 	focus_group=
 	if test -n "$constrain"
 	then
@@ -146,7 +147,7 @@ cmd_foreach()
 	fi
 
 	test -n "$post_order" && recurse_flags="$recurse_flags --post-order"
-	test -z "$recursive" && recurse_flags="$recurse_flags --non-recursive"
+	test -n "$recursive" && recurse_flags="$recurse_flags --recursive"
 
 	module_list $focus_group |
 	while read mode sha1 stage sm_path
