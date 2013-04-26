@@ -4,10 +4,14 @@
 #
 # Lots of things copied and pasted from git-submodule.sh
 
-# Can't get something this to work: `git fer git commit -m "Some long message"` -- need to figure this out
+# TODO Match with updates to git-submodule-foreach
+
+# Can't get something this to work: `git sfe git commit -m "Some long message"` -- need to figure this out
+# - Not sure if this still applies...
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
-USAGE="[-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>"
+USAGE="foreach [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
+	or: $dashless sync"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -79,7 +83,85 @@ module_name()
 	echo "$name"
 }
 
-# TODO Match with updates to git-submodule-foreach
+# git sfer 'echo $(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path'
+# TODO Add above functionality, for syncing with other computers via git-daemon
+
+cmd_sync()
+{
+	while test $# -ne 0
+	do
+		case "$1" in
+		-q|--quiet)
+			GIT_QUIET=1
+			shift
+			;;
+		--recursive)
+			recursive=1
+			shift
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			usage
+			;;
+		*)
+			break
+			;;
+		esac
+	done
+	cd_to_toplevel
+	module_list "$@" |
+	while read mode sha1 stage sm_path
+	do
+		die_if_unmatched "$mode"
+		name=$(module_name "$sm_path")
+		url=$(git config -f .gitmodules --get submodule."$name".url)
+
+		# Possibly a url relative to parent
+		case "$url" in
+		./*|../*)
+			# rewrite foo/bar as ../.. to find path from
+			# submodule work tree to superproject work tree
+			up_path="$(echo "$sm_path" | sed "s/[^/][^/]*/../g")" &&
+			# guarantee a trailing /
+			up_path=${up_path%/}/ &&
+			# path from submodule work tree to submodule origin repo
+			sub_origin_url=$(resolve_relative_url "$url" "$up_path") &&
+			# path from superproject work tree to submodule origin repo
+			super_config_url=$(resolve_relative_url "$url") || exit
+			;;
+		*)
+			sub_origin_url="$url"
+			super_config_url="$url"
+			;;
+		esac
+
+		if git config "submodule.$name.url" >/dev/null 2>/dev/null
+		then
+			say "$(eval_gettext "Synchronizing submodule url for '\$prefix\$sm_path'")"
+			git config submodule."$name".url "$super_config_url"
+
+			if test -e "$sm_path"/.git
+			then
+			(
+				clear_local_git_env
+				cd "$sm_path"
+				remote=$(get_default_remote)
+				git config remote."$remote".url "$sub_origin_url"
+
+				if test -n "$recursive"
+				then
+					prefix="$prefix$sm_path/"
+					eval cmd_sync
+				fi
+			)
+			fi
+		fi
+	done
+}
+
 cmd_foreach()
 {
 	# parse $args after "submodule ... foreach".
@@ -190,4 +272,19 @@ cmd_foreach()
 	fi
 }
 
-cmd_foreach "$@"
+while test $# != 0 && test -z "$command"
+do
+	case "$1" in
+	foreach | sync)
+		command=$1
+		;;
+	*)
+		usage
+		;;
+	esac
+	shift
+done
+
+test -z "$command" && usage
+
+"cmd_$command" "$@"
