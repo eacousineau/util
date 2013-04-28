@@ -243,9 +243,10 @@ branch_iter_checkout() {
 		git checkout $branch
 	fi
 }
+
 cmd_branch()
 {
-	local foreach_flags= command=
+	foreach_flags= command=
 	while test $# -gt 0
 	do
 		case $1 in
@@ -273,9 +274,9 @@ cmd_branch()
 cmd_womp()
 {
 	# How to get current remote?
-	local clean= set_upstream= no_pull= recursive= force= sync=1
-	local remote=origin
-	local foreach_flags=
+	remote=origin set_upstream=1 sync=1
+	clean= no_pull= recursive= force= list=
+	foreach_flags=
 	while test $# -gt 0
 	do
 		case $1 in
@@ -289,29 +290,21 @@ cmd_womp()
 			--no-sync)
 				sync=
 				;;
-			-u|--set-upstream)
-				set_upstream=1
+			--no-upstream)
+				set_upstream=
 				;;
-			-n|--no-pull)
+			--no-pull)
 				no_pull=1
 				;;
 			-f|--force)
-				echo "WARNING: This will do a HARD reset on all of your branches to your remote."
-				echo "Are you sure you want to continue? [Y/n]"
-				read choice
-				case "$choice" in
-					Y|y)
-						force=1
-						;;
-					*)
-						die "Aborting"
-						;;
-				esac
+				force=1
 				;;
 			# foreach flags
 			-l)
 				# Escaping woes
+				list=$2
 				foreach_flags="$foreach_flags $1 '$2'"
+				shift
 				;;
 			-s|-c|-r)
 				foreach_flags="$foreach_flags $1"
@@ -323,30 +316,57 @@ cmd_womp()
 		shift
 	done
 
+	if -n "$force"
+	then
+		echo "WARNING: This will do a HARD reset on all of your branches to your remote."
+		echo "Are you sure you want to continue? [Y/n]"
+		read choice
+		case "$choice" in
+			Y|y)
+				;;
+			*)
+				die "Aborting"
+				;;
+		esac
+	fi
+
 	womp_iter() {
+		echo "Fetching $prefix$name"
 		git fetch --no-recurse-submodules $remote
 		test -n "$top_level" && branch_iter_checkout
 		branch=$(branch_get)
-		if test -z "$force"
+		if test "$branch" = "HEAD"
 		then
-			git merge $remote/$branch
+			echo "$name is in a detached head state. Can't womp, skipping"
 		else
-			git checkout -fB $branch $remote/$branch
+			if test -z "$force"
+			then
+				git merge $remote/$branch
+			else
+				git checkout -fB $branch $remote/$branch
+			fi
+			test -n "$clean" && git clean -fd
+			test -n "$set_upstream" && branch_set_upstream
 		fi
-		test -n "$clean" && git clean -fd
-		test -n "$set_upstream" && branch_set_upstream
+
+		# Do supermodule things
+		if test -e .gitmodules
+		then
+			# NOTE: $list comes from cmd_foreach
+			git submodule init -- $list
+			test -n "$sync" && git submodule sync
+			git submodule update -- $list || echo "Update failed... Still continuing"
+		fi
 	}
 
 	# Do top-level first
 	top_level=
+	prefix=
+	name=$(basename $(pwd))
 	womp_iter
 
-	git submodule init
-	test -n "$sync" && git submodule sync
-	git submodule update || echo "Update failed... Still continuing"
-
 	# Now do it
-	cmd_foreach -p $foreach_flags womp_iter
+	cmd_foreach $foreach_flags womp_iter
 }
 
 command=
