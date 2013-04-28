@@ -1,24 +1,30 @@
 #!/bin/bash
+set -e -u
+
+# Is there a script like this already?
 
 # Too lazy for /bin/sh
 bin="$(basename $0)"
-
 usage()
 {
-	echo "$bin [--clean] [--link] DEST"
+	echo "$bin [--no-clean] [--link] [-u | --uninstall] DEST"
 	exit $1
 }
 
-clean=
+clean=1
 link=
+uninstall=
 while test $# -gt 0
 do
 	case $1 in
-		--clean)
-			clean=1
+		--no-clean)
+			clean=
 			;;
 		--link)
 			link=1
+			;;
+		-u|--uninstall)
+			uninstall=1
 			;;
 		-h|--help)
 			usage 0
@@ -30,7 +36,11 @@ do
 	shift
 done
 
-test $# -eq 0 && echo "Need to supply directory (absolute path) to put this stuff in." && usage 1
+if test $# -eq 0
+then
+	echo "Need to supply directory (absolute path) to put this stuff in."
+	usage 1
+fi
 dir=$1
 shift
 
@@ -42,18 +52,21 @@ linkerade()
 	new=$(basename $1 .sh)
 	src=~+/$1
 	dest=$dir/$new
-	if test -e "$dest" -a -n "$clean"
+	if test -e "$dest" -a \( -n "$uninstall" -o -n "$clean" \)
 	then
-		echo -e "\tRemoving $dest"
+		echo -e "Removing $dest"
 		rm $dest
 	fi
-	if test -z "$link"
+	if test -z "$uninstall"
 	then
-		echo "Copying $src -> $dest"
-		cp $src $dest
-	else
-		echo "Linking $src -> $dest"
-		ln -s $src $dest
+		if test -z "$link"
+		then
+			echo "Copying $src -> $dest"
+			cp $src $dest
+		else
+			echo "Linking $src -> $dest"
+			ln -s $src $dest
+		fi
 	fi
 }
 
