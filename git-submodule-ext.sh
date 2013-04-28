@@ -3,11 +3,7 @@
 # git-sfe.sh: submodule foreach with option to include supermodule
 #
 # Lots of things copied and pasted from git-submodule.sh
-
-# TODO Match with updates to git-submodule-foreach
-
-# Can't get something this to work: `git sfe git commit -m "Some long message"` -- need to figure this out
-# - Not sure if this still applies...
+# TODO Add in other updates to git-submodule-foreach
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
@@ -107,6 +103,7 @@ cmd_foreach()
 	constrain=
 	silent=
 	list=
+	recurse_flags=
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -115,12 +112,15 @@ cmd_foreach()
 			;;
 		-r|--recursive)
 			recursive=1
+			recurse_flags="$recurse_flags --recursive"
 			;;
 		-p|--post-order)
 			post_order=1
+			recurse_flags="$recurse_flags --post-order"
 			;;
 		-c|--constrain)
 			constrain=1
+			recurse_flags="$recurse_flags --constrain"
 			;;
 		-t|--top-level)
 			include_super=1
@@ -131,6 +131,7 @@ cmd_foreach()
 			;;
 		-s|--silent)
 			silent=1
+			recurse_flags="$recurse_flags --silent"
 			;;
 		-*)
 			usage
@@ -150,24 +151,22 @@ cmd_foreach()
 
 	# For supermodule
 	name=$(basename $toplevel)
+	# This is absolute... Is that a good idea?
 	path=$toplevel
-
-	super_die_msg="Stopping at supermodule; script returned non-zero status."
 
 	super_eval()
 	{
 		verb=$1
 		shift
 		test -z "$silent" && say "$(eval_gettext "$verb supermodule '$name'")"
-		( eval "$@" ) || die "$super_die_msg"
+		( eval "$@" ) || die "Stopping at supermodule; script returned non-zero status."
 	}
 
 	if test -n "$include_super" -a -z "$post_order"
 	then
 		super_eval Entering "$@"
 	fi
-
-	recurse_flags=""
+	
 	if test -n "$constrain"
 	then
 		if test -z "$list"
@@ -176,11 +175,7 @@ cmd_foreach()
 		else
 			echo "Note: List set for parent, only constraining on submodules"
 		fi
-		recurse_flags="$recurse_flags --constrain"
 	fi
-
-	test -n "$post_order" && recurse_flags="$recurse_flags --post-order"
-	test -n "$recursive" && recurse_flags="$recurse_flags --recursive"
 
 	test -z "${prefix+D}" && prefix=
 
@@ -212,7 +207,7 @@ cmd_foreach()
 				fi &&
 				if test -n "$post_order"
 				then
-					test -z "$silent" && say "$exit_msg" &&
+					test -z "$silent" && say "$exit_msg"
 					eval "$@" || exit 1
 				fi
 			) <&3 3<&- || die "$die_msg"
@@ -233,6 +228,7 @@ branch_set_upstream() {
 	branch=$(branch_get)
 	git branch --set-upstream $branch $remote/$branch
 }
+
 branch_iter_write() {
 	branch=$(branch_get)
 	git config -f $toplevel/.gitmodules submodule.$name.branch $branch
@@ -243,7 +239,6 @@ branch_iter_checkout() {
 		git checkout $branch
 	fi
 }
-
 cmd_branch()
 {
 	local foreach_flags= command=
@@ -363,7 +358,6 @@ do
 	esac
 	shift
 done
-
 test -z "$command" && usage
 
 "cmd_$command" "$@"
