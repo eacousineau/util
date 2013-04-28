@@ -1,6 +1,7 @@
 #!/bin/bash
 
-git config --global alias.sfe '!git-submodule-ext foreach'
+git config --global alias.sube '!git-submodule-ext'
+git config --global alias.sfe '!git sube foreach'
 git config --global alias.sfer '!git sfe -r'
 git config --global alias.tsfe '!git sfe -t'
 git config --global alias.tsfep '!git sfe -t -p'

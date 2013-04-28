@@ -10,13 +10,20 @@
 # - Not sure if this still applies...
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
-USAGE="foreach [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
-	or: $dashless sync"
+USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
+	or: $dashless sync
+	or: $dashless womp [FOREACH_FLAGS]
+	or: $dashless branch [FOREACH_FLAGS] [write | checkout]"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
 . git-parse-remote
 require_work_tree
+
+# http://stackoverflow.com/questions/171550/find-out-which-remote-branch-a-local-branch-is-tracking
+# git name-rev --name-only HEAD
+
+set -u -e
 
 #
 # Get submodule info for registered submodules
@@ -88,78 +95,7 @@ module_name()
 
 cmd_sync()
 {
-	while test $# -ne 0
-	do
-		case "$1" in
-		-q|--quiet)
-			GIT_QUIET=1
-			shift
-			;;
-		--recursive)
-			recursive=1
-			shift
-			;;
-		--)
-			shift
-			break
-			;;
-		-*)
-			usage
-			;;
-		*)
-			break
-			;;
-		esac
-	done
-	cd_to_toplevel
-	module_list "$@" |
-	while read mode sha1 stage sm_path
-	do
-		die_if_unmatched "$mode"
-		name=$(module_name "$sm_path")
-		url=$(git config -f .gitmodules --get submodule."$name".url)
-
-		# Possibly a url relative to parent
-		case "$url" in
-		./*|../*)
-			# rewrite foo/bar as ../.. to find path from
-			# submodule work tree to superproject work tree
-			up_path="$(echo "$sm_path" | sed "s/[^/][^/]*/../g")" &&
-			# guarantee a trailing /
-			up_path=${up_path%/}/ &&
-			# path from submodule work tree to submodule origin repo
-			sub_origin_url=$(resolve_relative_url "$url" "$up_path") &&
-			# path from superproject work tree to submodule origin repo
-			super_config_url=$(resolve_relative_url "$url") || exit
-			;;
-		*)
-			sub_origin_url="$url"
-			super_config_url="$url"
-			;;
-		esac
-
-		if git config "submodule.$name.url" >/dev/null 2>/dev/null
-		then
-			say "$(eval_gettext "Synchronizing submodule url for '\$prefix\$sm_path'")"
-			git config submodule."$name".url "$super_config_url"
-
-			if test -e "$sm_path"/.git
-			then
-			(
-				clear_local_git_env
-				cd "$sm_path"
-				remote=$(get_default_remote)
-				git config remote."$remote".url "$sub_origin_url"
-
-				if test -n "$recursive"
-				then
-					prefix="$prefix$sm_path/"
-					eval cmd_sync
-				fi
-			)
-			fi
-		fi
-	done
+	die "Not implemented. Use git-submodule sync"
 }
 
 cmd_foreach()
@@ -169,6 +105,8 @@ cmd_foreach()
 	post_order=
 	include_super=
 	constrain=
+	silent=
+	list=
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -186,6 +124,13 @@ cmd_foreach()
 			;;
 		-t|--top-level)
 			include_super=1
+			;;
+		-l|--list)
+			list=$2
+			shift
+			;;
+		-s|--silent)
+			silent=1
 			;;
 		-*)
 			usage
@@ -213,7 +158,7 @@ cmd_foreach()
 	{
 		verb=$1
 		shift
-		say "$(eval_gettext "$verb supermodule '$name'")"
+		test -z "$silent" && say "$(eval_gettext "$verb supermodule '$name'")"
 		( eval "$@" ) || die "$super_die_msg"
 	}
 
@@ -223,17 +168,23 @@ cmd_foreach()
 	fi
 
 	recurse_flags=""
-	focus_group=
 	if test -n "$constrain"
 	then
-		focus_group=$(git config scm.focusGroup)
+		if test -z "$list"
+		then
+			list=$(git config scm.focusGroup)
+		else
+			echo "Note: List set for parent, only constraining on submodules"
+		fi
 		recurse_flags="$recurse_flags --constrain"
 	fi
 
 	test -n "$post_order" && recurse_flags="$recurse_flags --post-order"
 	test -n "$recursive" && recurse_flags="$recurse_flags --recursive"
 
-	module_list $focus_group |
+	test -z "${prefix+D}" && prefix=
+
+	module_list $list |
 	while read mode sha1 stage sm_path
 	do
 		die_if_unmatched "$mode"
@@ -251,16 +202,17 @@ cmd_foreach()
 				cd "$sm_path" &&
 				if test -z "$post_order"
 				then
-					say "$enter_msg"
+					test -z "$silent" && say "$enter_msg"
 					eval "$@" || exit 1
 				fi &&
 				if test -n "$recursive"
 				then
+					list=
 					cmd_foreach $recurse_flags "$@" || exit 1
 				fi &&
 				if test -n "$post_order"
 				then
-					say "$exit_msg" &&
+					test -z "$silent" && say "$exit_msg" &&
 					eval "$@" || exit 1
 				fi
 			) <&3 3<&- || die "$die_msg"
@@ -273,10 +225,136 @@ cmd_foreach()
 	fi
 }
 
+branch_get() {
+	git rev-parse --abbrev-ref HEAD
+}
+branch_set_upstream() {
+	# For Git < 1.8
+	branch=$(branch_get)
+	git branch --set-upstream $branch $remote/$branch
+}
+branch_iter_write() {
+	branch=$(branch_get)
+	git config -f $toplevel/.gitmodules submodule.$name.branch $branch
+}
+branch_iter_checkout() {
+	if branch=$(git config -f $toplevel/.gitmodules submodule.$name.branch 2>/dev/null)
+	then
+		git checkout $branch
+	fi
+}
+
+cmd_branch()
+{
+	local foreach_flags= command=
+	while test $# -gt 0
+	do
+		case $1 in
+			-s|-c|-r)
+				foreach_flags="$foreach_flags $1"
+				;;
+			*)
+				break
+				;;
+		esac
+		shift
+	done
+	test $# -eq 0 && usage
+	case $1 in
+		write | checkout)
+			command=$1
+			;;
+		*)
+			usage
+			;;
+	esac
+	cmd_foreach $foreach_flags branch_iter_${command}
+}
+
+cmd_womp()
+{
+	# How to get current remote?
+	local clean= set_upstream= no_pull= recursive= force= sync=1
+	local remote=origin
+	local foreach_flags=
+	while test $# -gt 0
+	do
+		case $1 in
+			--remote)
+				remote=$2
+				shift
+				;;
+			--clean)
+				clean=1
+				;;
+			--no-sync)
+				sync=
+				;;
+			-u|--set-upstream)
+				set_upstream=1
+				;;
+			-n|--no-pull)
+				no_pull=1
+				;;
+			-f|--force)
+				echo "WARNING: This will do a HARD reset on all of your branches to your remote."
+				echo "Are you sure you want to continue? [Y/n]"
+				read choice
+				case "$choice" in
+					Y|y)
+						force=1
+						;;
+					*)
+						die "Aborting"
+						;;
+				esac
+				;;
+			# foreach flags
+			-l)
+				# Escaping woes
+				foreach_flags="$foreach_flags $1 '$2'"
+				;;
+			-s|-c|-r)
+				foreach_flags="$foreach_flags $1"
+				;;
+			*)
+				break
+				;;
+		esac
+		shift
+	done
+
+	womp_iter() {
+		git fetch --no-recurse-submodules $remote
+		test -n "$top_level" && branch_iter_checkout
+		branch=$(branch_get)
+		if test -z "$force"
+		then
+			git merge $remote/$branch
+		else
+			git checkout -fB $branch $remote/$branch
+		fi
+		test -n "$clean" && git clean -fd
+		test -n "$set_upstream" && branch_set_upstream
+	}
+
+	# Do top-level first
+	top_level=
+	womp_iter
+
+	git submodule init
+	test -n "$sync" && git submodule sync
+	git submodule update || echo "Update failed... Still continuing"
+
+	# Now do it
+	cmd_foreach -p $foreach_flags womp_iter
+}
+
+command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | sync)
+	foreach | sync | womp | branch)
 		command=$1
 		;;
 	*)
