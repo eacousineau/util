@@ -112,15 +112,15 @@ cmd_foreach()
 			;;
 		-r|--recursive)
 			recursive=1
-			recurse_flags="$recurse_flags --recursive"
+			recurse_flags="$recurse_flags $1"
 			;;
 		-p|--post-order)
 			post_order=1
-			recurse_flags="$recurse_flags --post-order"
+			recurse_flags="$recurse_flags $1"
 			;;
 		-c|--constrain)
 			constrain=1
-			recurse_flags="$recurse_flags --constrain"
+			recurse_flags="$recurse_flags $1"
 			;;
 		-t|--top-level)
 			include_super=1
@@ -131,7 +131,7 @@ cmd_foreach()
 			;;
 		-s|--silent)
 			silent=1
-			recurse_flags="$recurse_flags --silent"
+			recurse_flags="$recurse_flags $1"
 			;;
 		-*)
 			usage
@@ -151,6 +151,7 @@ cmd_foreach()
 
 	# For supermodule
 	name=$(basename $toplevel)
+
 	# This is absolute... Is that a good idea?
 	path=$toplevel
 
@@ -198,17 +199,20 @@ cmd_foreach()
 				if test -z "$post_order"
 				then
 					test -z "$silent" && say "$enter_msg"
-					eval "$@" || exit 1
+					( eval "$@" ) || exit 1
 				fi &&
 				if test -n "$recursive"
 				then
-					list=
-					cmd_foreach $recurse_flags "$@" || exit 1
+					(
+						list=
+						# Contain so things don't spill to post_order
+						cmd_foreach $recurse_flags "$@" || exit 1
+					) || exit 1
 				fi &&
 				if test -n "$post_order"
 				then
 					test -z "$silent" && say "$exit_msg"
-					eval "$@" || exit 1
+					( eval "$@" ) || exit 1
 				fi
 			) <&3 3<&- || die "$die_msg"
 		fi
