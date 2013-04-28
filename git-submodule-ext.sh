@@ -83,8 +83,8 @@ module_name()
 	echo "$name"
 }
 
+# TODO Add below functionality, for syncing with other computers via git-daemon
 # git sfer 'echo $(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path'
-# TODO Add above functionality, for syncing with other computers via git-daemon
 
 cmd_sync()
 {
@@ -207,12 +207,14 @@ cmd_foreach()
 	name=$(basename $toplevel)
 	path=$toplevel
 
+	super_die_msg="Stopping at supermodule; script returned non-zero status."
+
 	super_eval()
 	{
 		verb=$1
 		shift
 		say "$(eval_gettext "$verb supermodule '$name'")"
-		( eval "$@" ) || die "Stopping at supermodule; script returned non-zero status."
+		( eval "$@" ) || die "$super_die_msg"
 	}
 
 	if test -n "$include_super" -a -z "$post_order"
@@ -250,21 +252,20 @@ cmd_foreach()
 				if test -z "$post_order"
 				then
 					say "$enter_msg"
-					eval "$@" || die "$die_msg"
+					eval "$@" || exit 1
 				fi &&
 				if test -n "$recursive"
 				then
-					cmd_foreach $recurse_flags "$@"
+					cmd_foreach $recurse_flags "$@" || exit 1
 				fi &&
 				if test -n "$post_order"
 				then
 					say "$exit_msg" &&
-					eval "$@" || die "$die_msg"
+					eval "$@" || exit 1
 				fi
-			) <&3 3<&- ||
-			die "$die_msg"
+			) <&3 3<&- || die "$die_msg"
 		fi
-	done
+	done || exit 1
 
 	if test -n "$include_super" -a -n "$post_order"
 	then
