@@ -306,7 +306,7 @@ cmd_womp()
 			-l)
 				# Escaping woes
 				list=$2
-				foreach_flags="$foreach_flags $1 '$2'"
+				foreach_flags="$foreach_flags $1 \"$2\""
 				shift
 				;;
 			-s|-c|-r)
@@ -319,7 +319,7 @@ cmd_womp()
 		shift
 	done
 
-	if -n "$force"
+	if test -n "$force"
 	then
 		echo "WARNING: This will do a HARD reset on all of your branches to your remote."
 		echo "Are you sure you want to continue? [Y/n]"
