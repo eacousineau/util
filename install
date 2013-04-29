@@ -52,7 +52,7 @@ linkerade()
 	new=$(basename $1 .sh)
 	src=~+/$1
 	dest=$dir/$new
-	if test \( -e "$dest" -o -L "$dest" \) -a \( -n "$uninstall" -o -n "$clean" \)
+	if test -h "$dest" -a \( -n "$uninstall" -o -n "$clean" \)
 	then
 		echo -e "Removing $dest"
 		rm $dest
