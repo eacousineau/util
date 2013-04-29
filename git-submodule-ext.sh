@@ -222,6 +222,7 @@ cmd_foreach()
 			shift
 			;;
 		--not-top)
+			# Less hacky way?
 			is_top=
 			;;
 		--include-staged)
@@ -281,6 +282,7 @@ cmd_foreach()
 			(
 				is_worktree=1
 				list=
+				is_top=
 				name=$(module_name "$sm_path")
 				prefix="$prefix$sm_path/"
 				clear_local_git_env
@@ -311,6 +313,7 @@ cmd_foreach()
 			say "$enter_msg"
 			(
 				is_worktree=
+				is_top=
 				path=$sm_path
 				eval "$@"
 			) || exit 1
@@ -449,14 +452,13 @@ cmd_womp()
 
 		if test -z "$is_top"
 		then
+			# Show branch if it's a dry run?
 			test -z "$dry_run" && branch_iter_checkout
 		elif test -n "$branch"
 		then
 			test -z "$dry_run" && git checkout $branch
 		fi
 		branch=$(branch_get)
-
-		echo "Branch: $branch"
 
 		if test "$branch" = "HEAD"
 		then
