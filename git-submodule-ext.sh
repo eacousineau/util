@@ -96,7 +96,7 @@ module_name()
 # Add 'write' / 'sub' to write submodule's url to .gitmodules
 # Good words for doing that?
 
-set_sub_url() {
+set_module_config_url() {
 	local path=$1
 	local myurl=$2
 	git config -f $toplevel/.gitmodules submodule.$path.url $myurl
@@ -136,11 +136,12 @@ cmd_resync()
 		remote=$1
 	else
 		# Allow submodules to have different default remotes?
-		remote=$(get_default_remote)
+		remote=$(get_default_remote || :) # Does not return successful at times?
+		echo $remote
 	fi
 	# Add a non-isolated command for foreaech?
 
-	# --staged option is somehting to be wary of...
+	# --include-staged option is somehting to be wary of...
 	resync_iter() {
 		if test -z "$reverse"
 		then
@@ -159,7 +160,7 @@ cmd_resync()
 		# Doesn't do relative paths
 
 		say "Submodule url is now $myurl"
-		set_sub_url "$path" "$myurl"
+		set_module_config_url "$path" "$myurl"
 
 		if test -z "$reverse" -a -n "$is_worktree" -a -n "$change_url"
 		then
@@ -168,7 +169,7 @@ cmd_resync()
 		fi
 	}
 
-	cmd_foreach --staged $foreach_flags resync_iter
+	cmd_foreach --include-staged $foreach_flags resync_iter
 }
 
 foreach_read_constrained() {
@@ -194,7 +195,7 @@ cmd_foreach()
 	list=
 	recurse_flags=--not-top
 	is_top=1
-	iter_staged=
+	include_staged=
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -223,8 +224,8 @@ cmd_foreach()
 		--not-top)
 			is_top=
 			;;
-		--staged)
-			iter_staged=1
+		--include-staged)
+			include_staged=1
 			;;
 		-*)
 			usage
@@ -246,6 +247,7 @@ cmd_foreach()
 	name=$(basename $toplevel)
 
 	# This is absolute... Is that a good idea?
+	prefix=
 	path=$toplevel
 
 	is_worktree=1
@@ -303,7 +305,7 @@ cmd_foreach()
 					( eval "$@" ) || exit 1
 				fi
 			) <&3 3<&- || die "$die_msg"
-		elif test -n "$iter_staged"
+		elif test -n "$include_staged"
 		then
 			enter_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
 			say "$enter_msg"
@@ -368,6 +370,8 @@ cmd_branch()
 	cmd_foreach $foreach_flags branch_iter_${command}
 }
 
+# TODO I think subshells are preventing things from properly dying on error. Need to fix
+
 cmd_womp()
 {
 	# How to get current remote?
@@ -375,6 +379,8 @@ cmd_womp()
 	force= oompf= no_fetch= recursive= force= list= constrain=
 	branch=
 	foreach_flags= update_flags=
+	no_top_level_merge=
+	dry_run=
 	while test $# -gt 0
 	do
 		case $1 in
@@ -395,6 +401,9 @@ cmd_womp()
 			--no-track)
 				track=
 				;;
+			-T|--no-top-level-merge)
+				no_top_level_merge=1
+				;;
 			-N|--no-fetch)
 				no_fetch=1
 				update_flags=-N
@@ -404,6 +413,9 @@ cmd_womp()
 				;;
 			-s|-c|-r)
 				foreach_flags="$foreach_flags $1"
+				;;
+			-n|--dry-run)
+				dry_run=1
 				;;
 			-h|--help|--*)
 				usage
@@ -423,39 +435,49 @@ cmd_womp()
 		die "Invalid number of arguments specified"
 	fi
 
+	# For update, either need to a) update only the submodules not changed or
+	# b) do a post-order update... Or the submodule can decide
+
+	# Can do something like `cd $toplevel; git submodule update $update_flags -- $path`
+
 	womp_iter() {
 		if test -z "$no_fetch"
 		then
-			echo "Fetching $prefix"
-			git fetch --no-recurse-submodules $remote
+			say "Fetching $prefix"
+			test -z "$dry_run" && git fetch --no-recurse-submodules $remote || :
 		fi
 
 		if test -z "$is_top"
 		then
-			branch_iter_checkout
+			test -z "$dry_run" && branch_iter_checkout
 		elif test -n "$branch"
 		then
-			git checkout $branch
+			test -z "$dry_run" && git checkout $branch
 		fi
 		branch=$(branch_get)
+
+		echo "Branch: $branch"
 
 		if test "$branch" = "HEAD"
 		then
 			echo "$name is in a detached head state. Can't womp, skipping"
-		else
+		elif test -z "$is_top" -o -z "$no_top_level_merge"
+		then
 			if test -n "$force"
 			then
 				if test -n "$oompf" -a -n "$is_top"
 				then
 					# This does not need to applied recursively
 					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
-					rm -rf ./*
+					say "Removing files"
+					test -z "$dry_run" && rm -rf ./* || :
 				fi
-				git checkout -fB $branch $remote/$branch
+				say "Force checkout"
+				test -z "$dry_run" && git checkout -fB $branch $remote/$branch || :
 			else
-				git merge $remote/$branch
+				say "Merge $remote/$branch"
+				test -z "$dry_run" && git merge $remote/$branch || :
 			fi
-			test -n "$track" && branch_set_upstream
 		fi
 
 		# Do supermodule things
@@ -464,9 +486,13 @@ cmd_womp()
 		if test -e .gitmodules -a \( -n "$is_top" -o -n "$recursive" \)
 		then
 			# NOTE: $list comes from cmd_foreach
-			git submodule init -- $list
-			test -n "$sync" && git submodule sync -- $list
-			git submodule update $update_flags -- $list || echo "Update failed... Still continuing"
+			say "Submodule initialization, sync, and update"
+			if test -z "$dry_run"
+			then
+				git submodule init -- $list
+				git submodule sync -- $list
+				git submodule update $update_flags -- $list || echo "Update failed... Still continuing"
+			fi
 		fi
 	}
 
