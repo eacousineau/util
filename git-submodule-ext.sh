@@ -1,18 +1,15 @@
 #!/bin/sh
 #
-# git-sfe.sh: submodule foreach with option to include supermodule
+# git-submodule-ext.sh: submodule extensions
 #
 # Lots of things copied and pasted from git-submodule.sh
 # TODO Add in other updates to git-submodule-foreach
 
-# TODO Change womp --clean option to wipe out super module setup (with rm -rf ./*)
-# Effectively change it to also do --force
-
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
-	or: $dashless sync
-	or: $dashless womp [FOREACH_FLAGS]
-	or: $dashless branch [FOREACH_FLAGS] [write | checkout]"
+	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
+	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>
+	or: $dashless sync"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -94,7 +91,7 @@ module_name()
 
 cmd_sync()
 {
-	die "Not implemented. Use git-submodule sync"
+	die "Not implemented. Use \`git submodule sync\`"
 }
 
 foreach_read_constrained() {
@@ -102,7 +99,8 @@ foreach_read_constrained() {
 	then
 		if test -z "$list"
 		then
-			list=$(git config scm.focusGroup)
+			# Ensure that if this command fails, it still returns zero status
+			list=$(git config scm.focusGroup || :)
 		else
 			echo "Note: List set for parent, only constraining on submodules"
 		fi
@@ -281,9 +279,10 @@ cmd_branch()
 cmd_womp()
 {
 	# How to get current remote?
-	remote=origin set_upstream=1 sync=1
-	force= oompf= no_pull= recursive= force= list= constrain=
-	foreach_flags=
+	remote=origin track=1 sync=1
+	force= oompf= no_fetch= recursive= force= list= constrain=
+	branch=
+	foreach_flags= update_flags=
 	while test $# -gt 0
 	do
 		case $1 in
@@ -301,24 +300,21 @@ cmd_womp()
 			--no-sync)
 				sync=
 				;;
-			--no-upstream)
-				set_upstream=
+			--no-track)
+				track=
 				;;
-			--no-pull)
-				no_pull=1
-				;;
-			# foreach flags
-			-l)
-				# Escaping woes
-				list="$2"
-				foreach_flags="$foreach_flags $1 $list"
-				shift
+			-N|--no-fetch)
+				no_fetch=1
+				update_flags=-N
 				;;
 			-c|--constrain)
 				constrain=1
 				;;
 			-s|-c|-r)
 				foreach_flags="$foreach_flags $1"
+				;;
+			-h|--help|--*)
+				usage
 				;;
 			*)
 				break
@@ -327,12 +323,81 @@ cmd_womp()
 		shift
 	done
 
+	if test $# -eq 1
+	then
+		branch=$1
+	elif test $# -gt 1
+	then
+		die "Invalid number of arguments specified"
+	fi
+
+	womp_iter() {
+		if test -z "$no_fetch"
+		then
+			echo "Fetching $prefix$name"
+			git fetch --no-recurse-submodules $remote
+		fi
+
+		if test -n "$toplevel"
+		then
+			branch_iter_checkout
+		elif test -n "$branch"
+		then
+			git checkout $branch
+		fi
+		branch=$(branch_get)
+
+		if test "$branch" = "HEAD"
+		then
+			echo "$name is in a detached head state. Can't womp, skipping"
+		else
+			if test -n "$force"
+			then
+				if test -n "$oompf" -a -z "$toplevel"
+				then
+					# This does not need to applied recursively
+					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
+					rm -rf ./*
+				fi
+				git checkout -fB $branch $remote/$branch
+			else
+				git merge $remote/$branch
+			fi
+			test -n "$track" && branch_set_upstream
+		fi
+
+		# Do supermodule things
+		# TODO Need more elegant logic here
+		# 'recursive' is set by foreach
+		if test -e .gitmodules -a \( -z "$toplevel" -o -n "$recursive" \)
+		then
+			# NOTE: $list comes from cmd_foreach
+			git submodule init -- $list
+			test -n "$sync" && git submodule sync -- $list
+			git submodule update $update_flags -- $list || echo "Update failed... Still continuing"
+		fi
+	}
+
+
+
+	# Do top-level first
+	toplevel=
+	prefix=
+	name=$(basename $(pwd))
+
+	foreach_read_constrained
+
 	if test -n "$force"
 	then
 		echo "WARNING: A force womp will do a HARD reset on all of your branches to your remote's branch."
 		if test -n "$oompf"
 		then
 			echo "MORE WARNING: An oompf womp will remove all files before the reset."
+			if test -n "$list"
+			then
+				echo "EVEN MORE WARNING: Constraining your submodule list with an oompf womp will leave certain modules not checked out / initialized."
+				echo "It can also leave it hard to womp back your old modules without doing an oompf womp"
+			fi
 		fi
 		echo "Are you sure you want to continue? [Y/n]"
 		read choice
@@ -345,46 +410,7 @@ cmd_womp()
 		esac
 	fi
 
-	womp_iter() {
-		echo "Fetching $prefix$name"
-		git fetch --no-recurse-submodules $remote
-		test -n "$toplevel" && branch_iter_checkout
-		branch=$(branch_get)
-
-		if test "$branch" = "HEAD"
-		then
-			echo "$name is in a detached head state. Can't womp, skipping"
-		else
-			if test -n "$force"
-			then
-				if test -n "$oompf"
-				then
-					rm -rf ./*
-				fi
-				git checkout -fB $branch $remote/$branch
-			else
-				git merge $remote/$branch
-			fi
-			test -n "$set_upstream" && branch_set_upstream
-		fi
-
-		# Do supermodule things
-		# TODO Need more elegant logic here
-		# 'recursive' is set by foreach
-		if test -e .gitmodules -a \( -z "$toplevel" -o -n "$recursive" \)
-		then
-			# NOTE: $list comes from cmd_foreach
-			git submodule init -- $list
-			test -n "$sync" && git submodule sync -- $list
-			git submodule update -- $list || echo "Update failed... Still continuing"
-		fi
-	}
-
-	# Do top-level first
-	toplevel=
-	prefix=
-	name=$(basename $(pwd))
-	foreach_read_constrained
+	# First the supermodule itself (keeping outside for foreach for controlled environment)
 	womp_iter
 
 	# Now do it
