@@ -5,6 +5,9 @@
 # Lots of things copied and pasted from git-submodule.sh
 # TODO Add in other updates to git-submodule-foreach
 
+# TODO Change womp --clean option to wipe out super module setup (with rm -rf ./*)
+# Effectively change it to also do --force
+
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless sync
