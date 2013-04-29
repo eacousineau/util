@@ -21,6 +21,7 @@ If you wish to develop on them while keeping in your `$PATH`, then do
 
 *	Jens Lehmann, Junio Hamano, Heiko Voigt, Phil Hord - Design guidance and suggestions and for modifications to submodule foreach.
 *	Julian Phillips, Shawn O. Pearce - Original git-new-workdir
+*	Antonin Hildebrand - [Discussion](http://comments.gmane.org/gmane.comp.version-control.git/196019) for git-new-workdir with submodules
 *	wmanley - Original [git-meld](https://github.com/wmanley/git-meld)
 *	Vicky Chijwani - run-or-raise [blog post](http://vickychijwani.github.io/2012/04/15/blazing-fast-application-switching-in-linux/)
 *	David Mikalova - better run-or-raise implementation, [brocket](https://github.com/dmikalova/brocket.git)

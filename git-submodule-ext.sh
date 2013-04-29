@@ -9,7 +9,7 @@ dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>
-	or: $dashless sync"
+	or: $dashless resync"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -18,6 +18,10 @@ require_work_tree
 
 # http://stackoverflow.com/questions/171550/find-out-which-remote-branch-a-local-branch-is-tracking
 # git name-rev --name-only HEAD
+
+# get_default_remote
+
+# var=origin/feature/something; echo ${var#origin/}
 
 set -u -e
 
@@ -89,9 +93,82 @@ module_name()
 # TODO Add below functionality, for syncing with other computers via git-daemon
 # git sfer 'echo $(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path'
 
-cmd_sync()
+# Add 'write' / 'sub' to write submodule's url to .gitmodules
+# Good words for doing that?
+
+set_sub_url() {
+	local path=$1
+	local myurl=$2
+	git config -f $toplevel/.gitmodules submodule.$path.url $myurl
+	git config submodule.$path.url $myurl
+}
+
+cmd_resync()
 {
-	die "Not implemented. Use \`git submodule sync\`"
+	remote=
+	change_url=1
+	foreach_flags=
+	reverse=
+	while test $# -ne 0
+	do
+		case $1 in
+			-r|--recursive)
+				foreach_flags="$foreach_flags $1"
+				;;
+			--no-change)
+				change_url=
+				;;
+			--reverse)
+				reverse=1
+				;;
+			-h|--help|--*)
+				usage
+				;;
+			*)
+				break
+				;;
+		esac
+		shift
+	done
+
+	if test $# -eq 1
+	then
+		remote=$1
+	else
+		# Allow submodules to have different default remotes?
+		remote=$(get_default_remote)
+	fi
+	# Add a non-isolated command for foreaech?
+
+	# --staged option is somehting to be wary of...
+	resync_iter() {
+		if test -z "$reverse"
+		then
+			# Redundant :/
+			topurl=$(cd $toplevel && git config remote."$remote".url)
+			myurl=$topurl/modules/$path
+		else
+			if test -n "$is_worktree"
+			then
+				myurl=$(git config remote."$remote".url)
+			fi
+		fi
+
+		# What about changing the gitdir if it's not a worktree?
+
+		# Doesn't do relative paths
+
+		say "Submodule url is now $myurl"
+		set_sub_url "$path" "$myurl"
+
+		if test -z "$reverse" -a -n "$is_worktree" -a -n "$change_url"
+		then
+			say "Repo remote url is now $myurl"
+			git config remote.$remote.url "$myurl"
+		fi
+	}
+
+	cmd_foreach --staged $foreach_flags resync_iter
 }
 
 foreach_read_constrained() {
@@ -114,9 +191,10 @@ cmd_foreach()
 	post_order=
 	include_super=
 	constrain=
-	silent=
 	list=
-	recurse_flags=
+	recurse_flags=--not-top
+	is_top=1
+	iter_staged=
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -142,9 +220,11 @@ cmd_foreach()
 			list=$2
 			shift
 			;;
-		-s|--silent)
-			silent=1
-			recurse_flags="$recurse_flags $1"
+		--not-top)
+			is_top=
+			;;
+		--staged)
+			iter_staged=1
 			;;
 		-*)
 			usage
@@ -168,11 +248,13 @@ cmd_foreach()
 	# This is absolute... Is that a good idea?
 	path=$toplevel
 
+	is_worktree=1
+
 	super_eval()
 	{
 		verb=$1
 		shift
-		test -z "$silent" && say "$(eval_gettext "$verb supermodule '$name'")"
+		say "$(eval_gettext "$verb supermodule '$name'")"
 		( eval "$@" ) || die "Stopping at supermodule; script returned non-zero status."
 	}
 
@@ -195,6 +277,7 @@ cmd_foreach()
 			exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
 			die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
 			(
+				is_worktree=1
 				list=
 				name=$(module_name "$sm_path")
 				prefix="$prefix$sm_path/"
@@ -204,7 +287,7 @@ cmd_foreach()
 				cd "$sm_path" &&
 				if test -z "$post_order"
 				then
-					test -z "$silent" && say "$enter_msg"
+					say "$enter_msg"
 					( eval "$@" ) || exit 1
 				fi &&
 				if test -n "$recursive"
@@ -216,10 +299,19 @@ cmd_foreach()
 				fi &&
 				if test -n "$post_order"
 				then
-					test -z "$silent" && say "$exit_msg"
+					say "$exit_msg"
 					( eval "$@" ) || exit 1
 				fi
 			) <&3 3<&- || die "$die_msg"
+		elif test -n "$iter_staged"
+		then
+			enter_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
+			say "$enter_msg"
+			(
+				is_worktree=
+				path=$sm_path
+				eval "$@"
+			) || exit 1
 		fi
 	done || exit 1
 
@@ -334,11 +426,11 @@ cmd_womp()
 	womp_iter() {
 		if test -z "$no_fetch"
 		then
-			echo "Fetching $prefix$name"
+			echo "Fetching $prefix"
 			git fetch --no-recurse-submodules $remote
 		fi
 
-		if test -n "$toplevel"
+		if test -z "$is_top"
 		then
 			branch_iter_checkout
 		elif test -n "$branch"
@@ -353,7 +445,7 @@ cmd_womp()
 		else
 			if test -n "$force"
 			then
-				if test -n "$oompf" -a -z "$toplevel"
+				if test -n "$oompf" -a -n "$is_top"
 				then
 					# This does not need to applied recursively
 					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
@@ -369,7 +461,7 @@ cmd_womp()
 		# Do supermodule things
 		# TODO Need more elegant logic here
 		# 'recursive' is set by foreach
-		if test -e .gitmodules -a \( -z "$toplevel" -o -n "$recursive" \)
+		if test -e .gitmodules -a \( -n "$is_top" -o -n "$recursive" \)
 		then
 			# NOTE: $list comes from cmd_foreach
 			git submodule init -- $list
@@ -377,13 +469,6 @@ cmd_womp()
 			git submodule update $update_flags -- $list || echo "Update failed... Still continuing"
 		fi
 	}
-
-
-
-	# Do top-level first
-	toplevel=
-	prefix=
-	name=$(basename $(pwd))
 
 	foreach_read_constrained
 
@@ -410,22 +495,28 @@ cmd_womp()
 		esac
 	fi
 
-	# First the supermodule itself (keeping outside for foreach for controlled environment)
-	womp_iter
-
-	# Now do it
-	cmd_foreach $foreach_flags womp_iter
+	# Now do it, including top-level
+	cmd_foreach --top-level $foreach_flags womp_iter
 }
 
 command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | sync | womp | branch)
+	foreach | resync | womp | branch)
 		command=$1
 		;;
-	*)
+	-q|--quiet)
+		GIT_QUIET=1
+		;;
+	--)
+		break
+		;;
+	-*)
 		usage
+		;;
+	*)
+		break
 		;;
 	esac
 	shift
