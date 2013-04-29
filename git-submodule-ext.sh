@@ -97,6 +97,18 @@ cmd_sync()
 	die "Not implemented. Use git-submodule sync"
 }
 
+foreach_read_constrained() {
+	if test -n "$constrain"
+	then
+		if test -z "$list"
+		then
+			list=$(git config scm.focusGroup)
+		else
+			echo "Note: List set for parent, only constraining on submodules"
+		fi
+	fi
+}
+
 cmd_foreach()
 {
 	# parse $args after "submodule ... foreach".
@@ -171,15 +183,7 @@ cmd_foreach()
 		super_eval Entering "$@"
 	fi
 	
-	if test -n "$constrain"
-	then
-		if test -z "$list"
-		then
-			list=$(git config scm.focusGroup)
-		else
-			echo "Note: List set for parent, only constraining on submodules"
-		fi
-	fi
+	foreach_read_constrained
 
 	test -z "${prefix+D}" && prefix=
 
@@ -193,6 +197,7 @@ cmd_foreach()
 			exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
 			die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
 			(
+				list=
 				name=$(module_name "$sm_path")
 				prefix="$prefix$sm_path/"
 				clear_local_git_env
@@ -207,7 +212,6 @@ cmd_foreach()
 				if test -n "$recursive"
 				then
 					(
-						list=
 						# Contain so things don't spill to post_order
 						cmd_foreach $recurse_flags "$@" || exit 1
 					) || exit 1
@@ -278,7 +282,7 @@ cmd_womp()
 {
 	# How to get current remote?
 	remote=origin set_upstream=1 sync=1
-	clean= no_pull= recursive= force= list=
+	force= oompf= no_pull= recursive= force= list= constrain=
 	foreach_flags=
 	while test $# -gt 0
 	do
@@ -287,8 +291,12 @@ cmd_womp()
 				remote=$2
 				shift
 				;;
-			--clean)
-				clean=1
+			-f|--force)
+				force=1
+				;;
+			--oompf)
+				force=1
+				oompf=1
 				;;
 			--no-sync)
 				sync=
@@ -299,15 +307,15 @@ cmd_womp()
 			--no-pull)
 				no_pull=1
 				;;
-			-f|--force)
-				force=1
-				;;
 			# foreach flags
 			-l)
 				# Escaping woes
-				list=$2
-				foreach_flags="$foreach_flags $1 \"$2\""
+				list="$2"
+				foreach_flags="$foreach_flags $1 $list"
 				shift
+				;;
+			-c|--constrain)
+				constrain=1
 				;;
 			-s|-c|-r)
 				foreach_flags="$foreach_flags $1"
@@ -321,7 +329,11 @@ cmd_womp()
 
 	if test -n "$force"
 	then
-		echo "WARNING: This will do a HARD reset on all of your branches to your remote."
+		echo "WARNING: A force womp will do a HARD reset on all of your branches to your remote's branch."
+		if test -n "$oompf"
+		then
+			echo "MORE WARNING: An oompf womp will remove all files before the reset."
+		fi
 		echo "Are you sure you want to continue? [Y/n]"
 		read choice
 		case "$choice" in
@@ -336,36 +348,43 @@ cmd_womp()
 	womp_iter() {
 		echo "Fetching $prefix$name"
 		git fetch --no-recurse-submodules $remote
-		test -n "$top_level" && branch_iter_checkout
+		test -n "$toplevel" && branch_iter_checkout
 		branch=$(branch_get)
+
 		if test "$branch" = "HEAD"
 		then
 			echo "$name is in a detached head state. Can't womp, skipping"
 		else
-			if test -z "$force"
+			if test -n "$force"
 			then
-				git merge $remote/$branch
-			else
+				if test -n "$oompf"
+				then
+					rm -rf ./*
+				fi
 				git checkout -fB $branch $remote/$branch
+			else
+				git merge $remote/$branch
 			fi
-			test -n "$clean" && git clean -fd
 			test -n "$set_upstream" && branch_set_upstream
 		fi
 
 		# Do supermodule things
-		if test -e .gitmodules
+		# TODO Need more elegant logic here
+		# 'recursive' is set by foreach
+		if test -e .gitmodules -a \( -z "$toplevel" -o -n "$recursive" \)
 		then
 			# NOTE: $list comes from cmd_foreach
 			git submodule init -- $list
-			test -n "$sync" && git submodule sync
+			test -n "$sync" && git submodule sync -- $list
 			git submodule update -- $list || echo "Update failed... Still continuing"
 		fi
 	}
 
 	# Do top-level first
-	top_level=
+	toplevel=
 	prefix=
 	name=$(basename $(pwd))
+	foreach_read_constrained
 	womp_iter
 
 	# Now do it
