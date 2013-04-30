@@ -140,6 +140,7 @@ cmd_foreach()
 			;;
 		--no-cd)
 			no_cd=1
+			recurse_flags="$recurse_flags $1"
 			;;
 		-l|--list)
 			if test -n "$foreach_list"
@@ -230,7 +231,7 @@ cmd_foreach()
 				if test -n "$recursive"
 				then
 					(
-						if test -z "$no_cd"
+						if test -n "$no_cd"
 						then
 							cd "$sm_path"
 						fi
@@ -291,7 +292,7 @@ cmd_branch()
 	while test $# -gt 0
 	do
 		case $1 in
-			-s|-c|-r)
+			-c|-r)
 				foreach_flags="$foreach_flags $1"
 				;;
 			*)
@@ -353,7 +354,7 @@ cmd_womp()
 			-c|--constrain)
 				constrain=1
 				;;
-			-s|-c|-r)
+			-c|-r)
 				foreach_flags="$foreach_flags $1"
 				;;
 			-n|--dry-run)
@@ -386,7 +387,7 @@ cmd_womp()
 		if test -z "$no_fetch"
 		then
 			say "Fetching $prefix"
-			test -z "$dry_run" && git fetch --no-recurse-submodules $remote || :
+			test -z "$dry_run" && git fetch --no-recurse-submodules $remote
 		fi
 
 		if test -z "$is_top"
@@ -411,13 +412,13 @@ cmd_womp()
 					# This does not need to applied recursively
 					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
 					say "Removing files"
-					test -z "$dry_run" && rm -rf ./* || :
+					test -z "$dry_run" && rm -rf ./*
 				fi
 				say "Force checkout"
-				test -z "$dry_run" && git checkout -fB $branch $remote/$branch || :
+				test -z "$dry_run" && git checkout -fB $branch $remote/$branch
 			else
 				say "Merge $remote/$branch"
-				test -z "$dry_run" && git merge $remote/$branch || :
+				test -z "$dry_run" && git merge $remote/$branch
 			fi
 		fi
 
@@ -501,13 +502,7 @@ cmd_set_url()
 		shift
 	done
 
-	if test -z "$remote"
-	then
-		# Allow submodules to have different default remotes?
-		remote=$(get_default_remote || :) # Does not return successful at times?
-	fi
-
-	test $# -eq 0 && usage || :
+	test $# -eq 0 && usage
 
 	case $1 in
 		repo | config | base)
@@ -520,118 +515,135 @@ cmd_set_url()
 	esac
 	
 	# --include-staged option is somehting to be wary of...
-	set_url_{$command}_setup
+	set_url_${command}_setup "$@"
 	cmd_foreach $foreach_flags set_url_${command}_iter
 }
 
-set_module_url() {
-	if test -n "$is_worktree"
+set_url_iter() {
+	if test -z "$remote"
 	then
-		cd "$sm_path"
-		say "Set repo '$remote' url to '$myurl'"
-		git config "remote.$remote.url" "$myurl"
+		if test -n "$is_worktree"
+		then
+			# Allow submodules to have different default remotes?
+			remote=$(cd "$sm_path" && get_default_remote || :) # Does not return successful at times?
+		else
+			remote=origin
+		fi
 	fi
 }
 
-set_url_base_setup() {
+set_url_config_setup() {
 	set_gitmodules=
 	while test $# -gt 0
 	do
 		case $1 in
-		--set-gitmodules)
+		-g|--set-gitmodules)
 			set_gitmodules=1
 			;;
 		*)
 			break
 			;;
 		esac
-	done
-}
-set_url_base_iter() {
-	# Redundant :/
-	topurl=$(git config remote."$remote".url)
-	myurl=$topurl/modules/$path
-	say "Set config url to $myurl"
-
-	if test -n "$set_gitmodules"
-	then
-		git config -f .gitmodules "submodule.$name.url" "$myurl"
-	fi
-	git config "submodule.$path.url" $myurl
-	set_module_url
-}
-
-cmd_set_url_repo() {
-	use_gitmodules=
-	while test $# -gt 0
-	do
-		case $1 in
-		--use-gitmodules)
-			use_gitmodules=1
-			;;
-		*)
-			break
-			;;
-		esac
-	done
-	cmd_foreach $foreach_flags set_url_repo_iter
-}
-set_url_repo_iter() {
-	key="submodule.$name.url"
-	if test -n "$use_gitmodules"
-	then
-		myurl=$( cd $toplevel && git config -f .gitmodules "$key" )
-		(cd $toplevel && git config "$key" "$myurl")
-		say "Synced config url to '$myurl'"
-	else
-		myurl=$(cd $toplevel && git config "$key")
-	fi
-	set_module_url
-}
-
-# Akin to 'sync'
-set_url_config_setup() {
-	skip_repo=
-	while test $# -gt 0
-	do
-		case $1 in
-		--skip-repo)
-			skip_repo=1
-			;;
-		*)
-			break
-			;;
-		esac
+		shift
 	done
 }
 set_url_config_iter() {
+	set_url_iter
 	if test -n "$is_worktree"
 	then
-
-	myurl=$(git config "remote.$remote.url")
-	key="submodule.$name.url"
-	if test -n "$use_gitmodules"
-	then	
-		pushd $toplevel
-		myurl=$( cd $toplevel && git config -f .gitmodules "$key" )
-		(cd $toplevel && git config "$key" "$myurl")
-	else
-		myurl=$(cd $toplevel && git config "$key")
-	fi
-
-	if test -n "$is_worktree" -a -z "$skip_repo"
-	then
-		git config "remote.$remote.url" "$myurl"
+		sm_url=$(cd "$sm_path" && git config "remote.$remote.url")
+		set_module_config_url
 	fi
 }
+
+set_url_base_setup() {
+	# Same options
+	set_url_config_setup
+}
+set_url_base_iter() {
+	set_url_iter
+	# Redundant :/
+	topurl=$(git config remote."$remote".url)
+	sm_url=$topurl/modules/$path
+	
+	set_module_config_url
+	noun="toplevel"
+	set_module_url_if_worktree
+}
+
+set_url_repo_setup() {
+	use_gitmodules=
+	no_sync=
+	while test $# -gt 0
+	do
+		case $1 in
+		-g|--use-gitmodules)
+			use_gitmodules=1
+			;;
+		-S|--no-sync)
+			no_sync=1
+			;;
+		*)
+			break
+			;;
+		esac
+		shift
+	done
+}
+set_url_repo_iter() {
+	set_url_iter
+	key="submodule.$name.url"
+	if test -n "$use_gitmodules"
+	then
+		sm_url=$(git config -f .gitmodules "$key")
+		noun=".gitmodules"
+		if test -z "$no_sync"
+		then
+			git config "$key" "$sm_url"
+			say "Synced .git/config url to '$sm_url'"
+		fi
+	else
+		sm_url=$(cd $toplevel && git config "$key")
+		noun=".git/config"
+	fi
+	set_module_url_if_worktree
+}
+
+set_module_url_if_worktree() {
+	if test -n "$is_worktree"
+	then
+		cd "$sm_path"
+		say "Set repo '$remote' url to '$sm_url' (from $noun)"
+		git config "remote.$remote.url" "$sm_url"
+	fi
+}
+
+set_module_config_url() {
+	# Add check to see if mapping exists?
+
+	key="submodule.$name.url"
+	git config "$key" "$sm_url"
+	nouns=".git/config"
+
+	if test -n "$set_gitmodules"
+	then
+		nouns="$nouns and .gitmodules"
+		git config -f .gitmodules "$key" "$sm_url"
+	fi
+	say "Set $nouns url to '$sm_url'"
+}
+
 
 
 command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | set-url | womp | branch)
+	foreach | womp | branch)
 		command=$1
+		;;
+	set-url)
+		command="set_url"
 		;;
 	-q|--quiet)
 		GIT_QUIET=1
