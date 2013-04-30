@@ -177,7 +177,7 @@ cmd_foreach()
 	name=$(basename $toplevel)
 
 	# This is absolute... Is that a good idea?
-	prefix=
+	test -z "${prefix+D}" && prefix=
 	path=$toplevel
 
 	is_worktree=1
@@ -196,8 +196,6 @@ cmd_foreach()
 	fi
 	
 	foreach_read_constrained
-
-	test -z "${prefix+D}" && prefix=
 
 	module_list $foreach_list |
 	while read mode sha1 stage sm_path
