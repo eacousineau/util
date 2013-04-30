@@ -9,7 +9,7 @@ dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>
-	or: $dashless resync"
+	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -90,106 +90,6 @@ module_name()
 	echo "$name"
 }
 
-# TODO Add below functionality, for syncing with other computers via git-daemon
-# git sfer 'echo $(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path'
-
-# Add 'write' / 'sub' to write submodule's url to .gitmodules
-# Good words for doing that?
-
-set_module_config_url() {
-	local path=$1
-	local myurl=$2
-	if test -n "$set_gitmodules"
-	then
-		git config -f $toplevel/.gitmodules submodule.$path.url $myurl
-	fi
-	git config submodule.$path.url $myurl
-}
-
-cmd_resync()
-{
-	remote=
-	change_url=1
-	foreach_flags=
-	reverse=
-	set_gitmodules=
-	use_toplevel=
-	while test $# -ne 0
-	do
-		case $1 in
-			-r|--recursive|-c|--constrain)
-				foreach_flags="$foreach_flags $1"
-				;;
-			--remote)
-				remote=$2
-				shift
-				;;
-			--no-change)
-				change_url=
-				;;
-			--use-toplevel)
-				use_toplevel=1
-				;;
-			--reverse)
-				reverse=1
-				;;
-			--set-gitmodules)
-				set_gitmodules=1
-				;;
-			-h|--help|--*)
-				usage
-				;;
-			--)
-				shift
-				break
-				;;
-			*)
-				break
-				;;
-		esac
-		shift
-	done
-
-	foreach_list="$@"
-
-	if test -z "$remote"
-	then
-		# Allow submodules to have different default remotes?
-		remote=$(get_default_remote || :) # Does not return successful at times?
-	fi
-	# Add a non-isolated command for foreaech?
-
-	# --include-staged option is somehting to be wary of...
-	resync_iter() {
-		if test -z "$reverse"
-		then
-			# Redundant :/
-			topurl=$(cd $toplevel && git config remote."$remote".url)
-			myurl=$topurl/modules/$path
-		else
-			if test -n "$is_worktree"
-			then
-				myurl=$(git config remote."$remote".url)
-			fi
-		fi
-
-		# What about changing the gitdir if it's not a worktree?
-
-		# Doesn't do relative paths
-
-		say "Submodule url is now $myurl"
-		set_module_config_url "$path" "$myurl"
-
-		if test -z "$reverse" -a -n "$is_worktree" -a -n "$change_url"
-		then
-			say "Repo remote '$remote' url is now $myurl"
-			git config remote.$remote.url "$myurl"
-		fi
-	}
-
-	cmd_foreach --include-staged $foreach_flags resync_iter
-}
-
 foreach_read_constrained() {
 	if test -n "$constrain"
 	then
@@ -216,6 +116,7 @@ cmd_foreach()
 	recurse_flags=--not-top
 	is_top=1
 	include_staged=
+	no_cd=
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -236,6 +137,9 @@ cmd_foreach()
 			;;
 		-t|--top-level)
 			include_super=1
+			;;
+		--no-cd)
+			no_cd=1
 			;;
 		-l|--list)
 			if test -n "$foreach_list"
@@ -312,19 +216,29 @@ cmd_foreach()
 				clear_local_git_env
 				# we make $path available to scripts ...
 				path=$sm_path
-				cd "$sm_path" &&
+				if test -z "$no_cd"
+				then
+					cd "$sm_path"
+				fi
+
 				if test -z "$post_order"
 				then
 					say "$enter_msg"
 					( eval "$@" ) || exit 1
-				fi &&
+				fi
+
 				if test -n "$recursive"
 				then
 					(
+						if test -z "$no_cd"
+						then
+							cd "$sm_path"
+						fi
 						# Contain so things don't spill to post_order
 						cmd_foreach $recurse_flags "$@"
 					) || exit 1
-				fi &&
+				fi
+				
 				if test -n "$post_order"
 				then
 					say "$exit_msg"
@@ -552,11 +466,171 @@ cmd_womp()
 	cmd_foreach --top-level $foreach_flags womp_iter
 }
 
+# TODO Add below functionality, for syncing with other computers via git-daemon
+# git sfer 'echo $(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path'
+
+# Add 'write' / 'sub' to write submodule's url to .gitmodules
+# Good words for doing that?
+
+cmd_set_url()
+{
+	remote=
+	foreach_flags="--include-staged --no-cd"
+
+	while test $# -ne 0
+	do
+		case $1 in
+			-r|--recursive|-c|--constrain)
+				foreach_flags="$foreach_flags $1"
+				;;
+			-l|--list)
+				foreach_list="$2"
+				shift
+				;;
+			--remote)
+				remote=$2
+				shift
+				;;
+			-h|--help|--*)
+				usage
+				;;
+			*)
+				break
+				;;
+		esac
+		shift
+	done
+
+	if test -z "$remote"
+	then
+		# Allow submodules to have different default remotes?
+		remote=$(get_default_remote || :) # Does not return successful at times?
+	fi
+
+	test $# -eq 0 && usage || :
+
+	case $1 in
+		repo | config | base)
+			command=$1
+			shift
+			;;
+		*)
+			usage
+			;;
+	esac
+	
+	# --include-staged option is somehting to be wary of...
+	set_url_{$command}_setup
+	cmd_foreach $foreach_flags set_url_${command}_iter
+}
+
+set_module_url() {
+	if test -n "$is_worktree"
+	then
+		cd "$sm_path"
+		say "Set repo '$remote' url to '$myurl'"
+		git config "remote.$remote.url" "$myurl"
+	fi
+}
+
+set_url_base_setup() {
+	set_gitmodules=
+	while test $# -gt 0
+	do
+		case $1 in
+		--set-gitmodules)
+			set_gitmodules=1
+			;;
+		*)
+			break
+			;;
+		esac
+	done
+}
+set_url_base_iter() {
+	# Redundant :/
+	topurl=$(git config remote."$remote".url)
+	myurl=$topurl/modules/$path
+	say "Set config url to $myurl"
+
+	if test -n "$set_gitmodules"
+	then
+		git config -f .gitmodules "submodule.$name.url" "$myurl"
+	fi
+	git config "submodule.$path.url" $myurl
+	set_module_url
+}
+
+cmd_set_url_repo() {
+	use_gitmodules=
+	while test $# -gt 0
+	do
+		case $1 in
+		--use-gitmodules)
+			use_gitmodules=1
+			;;
+		*)
+			break
+			;;
+		esac
+	done
+	cmd_foreach $foreach_flags set_url_repo_iter
+}
+set_url_repo_iter() {
+	key="submodule.$name.url"
+	if test -n "$use_gitmodules"
+	then
+		myurl=$( cd $toplevel && git config -f .gitmodules "$key" )
+		(cd $toplevel && git config "$key" "$myurl")
+		say "Synced config url to '$myurl'"
+	else
+		myurl=$(cd $toplevel && git config "$key")
+	fi
+	set_module_url
+}
+
+# Akin to 'sync'
+set_url_config_setup() {
+	skip_repo=
+	while test $# -gt 0
+	do
+		case $1 in
+		--skip-repo)
+			skip_repo=1
+			;;
+		*)
+			break
+			;;
+		esac
+	done
+}
+set_url_config_iter() {
+	if test -n "$is_worktree"
+	then
+
+	myurl=$(git config "remote.$remote.url")
+	key="submodule.$name.url"
+	if test -n "$use_gitmodules"
+	then	
+		pushd $toplevel
+		myurl=$( cd $toplevel && git config -f .gitmodules "$key" )
+		(cd $toplevel && git config "$key" "$myurl")
+	else
+		myurl=$(cd $toplevel && git config "$key")
+	fi
+
+	if test -n "$is_worktree" -a -z "$skip_repo"
+	then
+		git config "remote.$remote.url" "$myurl"
+	fi
+}
+
+
 command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | resync | womp | branch)
+	foreach | set-url | womp | branch)
 		command=$1
 		;;
 	-q|--quiet)
