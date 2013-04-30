@@ -99,7 +99,10 @@ module_name()
 set_module_config_url() {
 	local path=$1
 	local myurl=$2
-	git config -f $toplevel/.gitmodules submodule.$path.url $myurl
+	if test -n "$set_gitmodules"
+	then
+		git config -f $toplevel/.gitmodules submodule.$path.url $myurl
+	fi
 	git config submodule.$path.url $myurl
 }
 
@@ -109,20 +112,36 @@ cmd_resync()
 	change_url=1
 	foreach_flags=
 	reverse=
+	set_gitmodules=
+	use_toplevel=
 	while test $# -ne 0
 	do
 		case $1 in
-			-r|--recursive)
+			-r|--recursive|-c|--constrain)
 				foreach_flags="$foreach_flags $1"
+				;;
+			--remote)
+				remote=$2
+				shift
 				;;
 			--no-change)
 				change_url=
 				;;
+			--use-toplevel)
+				use_toplevel=1
+				;;
 			--reverse)
 				reverse=1
 				;;
+			--set-gitmodules)
+				set_gitmodules=1
+				;;
 			-h|--help|--*)
 				usage
+				;;
+			--)
+				shift
+				break
 				;;
 			*)
 				break
@@ -131,13 +150,12 @@ cmd_resync()
 		shift
 	done
 
-	if test $# -eq 1
+	foreach_list="$@"
+
+	if test -z "$remote"
 	then
-		remote=$1
-	else
 		# Allow submodules to have different default remotes?
 		remote=$(get_default_remote || :) # Does not return successful at times?
-		echo $remote
 	fi
 	# Add a non-isolated command for foreaech?
 
@@ -164,7 +182,7 @@ cmd_resync()
 
 		if test -z "$reverse" -a -n "$is_worktree" -a -n "$change_url"
 		then
-			say "Repo remote url is now $myurl"
+			say "Repo remote '$remote' url is now $myurl"
 			git config remote.$remote.url "$myurl"
 		fi
 	}
@@ -175,15 +193,18 @@ cmd_resync()
 foreach_read_constrained() {
 	if test -n "$constrain"
 	then
-		if test -z "$list"
+		if test -z "$foreach_list"
 		then
 			# Ensure that if this command fails, it still returns zero status
-			list=$(git config scm.focusGroup || :)
+			foreach_list=$(git config scm.focusGroup || :)
 		else
 			echo "Note: List set for parent, only constraining on submodules"
 		fi
 	fi
 }
+
+# Hack (for now) to pass lists in to foreach
+foreach_list=
 
 cmd_foreach()
 {
@@ -192,7 +213,6 @@ cmd_foreach()
 	post_order=
 	include_super=
 	constrain=
-	list=
 	recurse_flags=--not-top
 	is_top=1
 	include_staged=
@@ -218,7 +238,11 @@ cmd_foreach()
 			include_super=1
 			;;
 		-l|--list)
-			list=$2
+			if test -n "$foreach_list"
+			then
+				die '$foreach_list supplied but --list was supplied also'
+			fi
+			foreach_list=$2
 			shift
 			;;
 		--not-top)
@@ -270,7 +294,7 @@ cmd_foreach()
 
 	test -z "${prefix+D}" && prefix=
 
-	module_list $list |
+	module_list $foreach_list |
 	while read mode sha1 stage sm_path
 	do
 		die_if_unmatched "$mode"
@@ -281,7 +305,7 @@ cmd_foreach()
 			die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
 			(
 				is_worktree=1
-				list=
+				foreach_list=
 				is_top=
 				name=$(module_name "$sm_path")
 				prefix="$prefix$sm_path/"
@@ -298,7 +322,7 @@ cmd_foreach()
 				then
 					(
 						# Contain so things don't spill to post_order
-						cmd_foreach $recurse_flags "$@" || exit 1
+						cmd_foreach $recurse_flags "$@"
 					) || exit 1
 				fi &&
 				if test -n "$post_order"
@@ -348,6 +372,7 @@ branch_iter_checkout() {
 
 cmd_branch()
 {
+	# Flags before or after?
 	foreach_flags= command=
 	while test $# -gt 0
 	do
@@ -379,7 +404,7 @@ cmd_womp()
 {
 	# How to get current remote?
 	remote=origin track=1 sync=1
-	force= oompf= no_fetch= recursive= force= list= constrain=
+	force= oompf= no_fetch= recursive= force= foreach_list= constrain=
 	branch=
 	foreach_flags= update_flags=
 	no_top_level_merge=
@@ -487,13 +512,13 @@ cmd_womp()
 		# 'recursive' is set by foreach
 		if test -e .gitmodules -a \( -n "$is_top" -o -n "$recursive" \)
 		then
-			# NOTE: $list comes from cmd_foreach
+			# NOTE: $foreach_list comes from cmd_foreach
 			say "Submodule initialization, sync, and update"
 			if test -z "$dry_run"
 			then
-				git submodule init -- $list
-				git submodule sync -- $list
-				git submodule update $update_flags -- $list || echo "Update failed... Still continuing"
+				git submodule init -- $foreach_list
+				git submodule sync -- $foreach_list
+				git submodule update $update_flags -- $foreach_list || echo "Update failed... Still continuing"
 			fi
 		fi
 	}
@@ -506,7 +531,7 @@ cmd_womp()
 		if test -n "$oompf"
 		then
 			echo "MORE WARNING: An oompf womp will remove all files before the reset."
-			if test -n "$list"
+			if test -n "$foreach_list"
 			then
 				echo "EVEN MORE WARNING: Constraining your submodule list with an oompf womp will leave certain modules not checked out / initialized."
 				echo "It can also leave it hard to womp back your old modules without doing an oompf womp"
