@@ -8,8 +8,8 @@
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
-	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>
-	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]"
+	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
+	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -154,7 +154,8 @@ cmd_foreach()
 			# Less hacky way?
 			is_top=
 			;;
-		--include-staged)
+		-i|--include-staged)
+			# Add staged-only flag?
 			include_staged=1
 			;;
 		-*)
@@ -201,25 +202,27 @@ cmd_foreach()
 	while read mode sha1 stage sm_path
 	do
 		die_if_unmatched "$mode"
-		if test -e "$sm_path"/.git
-		then
-			enter_msg="$(eval_gettext "Entering '\$prefix\$sm_path'")"
-			exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
-			die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
-			(
-				is_worktree=1
-				foreach_list=
-				is_top=
-				name=$(module_name "$sm_path")
-				prefix="$prefix$sm_path/"
-				clear_local_git_env
-				# we make $path available to scripts ...
-				path=$sm_path
-				if test -z "$no_cd"
-				then
-					cd "$sm_path"
-				fi
 
+		enter_msg="$(eval_gettext "Entering '\$prefix\$sm_path'")"
+		staged_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
+		exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
+		die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
+		
+		(
+			is_top=
+			name=$(module_name "$sm_path")
+			prefix="$prefix$sm_path/"
+			clear_local_git_env
+			# we make $path available to scripts ...
+			path=$sm_path
+
+			foreach_list=
+			if test -e "$sm_path"/.git
+			then
+				
+				is_worktree=1
+				test -z "$no_cd" && cd "$sm_path"
+				# Contain so things don't spill to post_order
 				if test -z "$post_order"
 				then
 					say "$enter_msg"
@@ -229,11 +232,7 @@ cmd_foreach()
 				if test -n "$recursive"
 				then
 					(
-						if test -n "$no_cd"
-						then
-							cd "$sm_path"
-						fi
-						# Contain so things don't spill to post_order
+						test -n "$no_cd" && cd "$sm_path"
 						cmd_foreach $recurse_flags "$@"
 					) || exit 1
 				fi
@@ -243,18 +242,14 @@ cmd_foreach()
 					say "$exit_msg"
 					( eval "$@" ) || exit 1
 				fi
-			) <&3 3<&- || die "$die_msg"
-		elif test -n "$include_staged"
-		then
-			enter_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
-			say "$enter_msg"
-			(
+			elif test -n "$include_staged"
+			then
+				say "$staged_msg"
 				is_worktree=
 				is_top=
-				path=$sm_path
-				eval "$@"
-			) || exit 1
-		fi
+				( eval "$@" ) || exit 1
+			fi
+		) <&3 3<&- || die "$die_msg"
 	done || exit 1
 
 	if test -n "$include_super" -a -n "$post_order"
@@ -313,6 +308,7 @@ cmd_branch()
 
 # TODO I think subshells are preventing things from properly dying on error. Need to fix
 
+# NOTE: Need to research `update --remote` to look into more functionality
 cmd_womp()
 {
 	# How to get current remote?
@@ -598,7 +594,7 @@ set_url_repo_iter() {
 		if test -z "$no_sync"
 		then
 			git config "$key" "$sm_url"
-			say "Synced .git/config url to '$sm_url'"
+			say "Synced .git/config url to '$sm_url' (from .gitmodules)"
 		fi
 	else
 		sm_url=$(cd $toplevel && git config "$key")
@@ -606,6 +602,16 @@ set_url_repo_iter() {
 	fi
 	set_module_url_if_worktree
 }
+
+# set_url_sync_setup() { }
+# set_url_sync_iter() {
+# 	set_url_iter
+# 	# Copy and paste :/
+# 	key="submodule.$name.url"
+# 	sm_url=$(git config -f .gitmodules "$key")
+# 	git config "$key" "$sm_url"
+# 	say "Synced .git/config url to '$sm_url' (from .gitmodules)"
+# }
 
 set_module_url_if_worktree() {
 	if test -n "$is_worktree"
