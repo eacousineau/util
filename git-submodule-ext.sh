@@ -617,8 +617,14 @@ set_module_url_if_worktree() {
 	if test -n "$is_worktree"
 	then
 		cd "$sm_path"
-		say "Set repo '$remote' url to '$sm_url' (from $noun)"
-		git config "remote.$remote.url" "$sm_url"
+		if git remote show "$remote" 1> /dev/null 2>&1
+		then
+			say "Set remote '$remote' url to '$sm_url' (from $noun)"
+			git remote set-url "$remote" "$sm_url"
+		else
+			say "Adding remote '$remote' with url '$sm_url' (from $noun)"
+			git remote add "$remote" "$sm_url"
+		fi
 	fi
 }
 
