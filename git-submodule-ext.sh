@@ -267,6 +267,20 @@ branch_set_upstream() {
 	git branch --set-upstream $branch $remote/$branch
 }
 
+branch_remote_checkout() { (
+	branch="$1"
+	if test -z "${remote+D}"
+	then
+		remote="$(get_default_remote || :)"
+	fi
+	if git show-branch $branch > /dev/null 2>&1
+	then
+		git checkout $branch
+	else
+		git checkout -t -b $branch "$remote/$branch"
+	fi
+) }
+
 branch_iter_write() {
 	branch=$(branch_get)
 	git config -f $toplevel/.gitmodules submodule.$name.branch $branch
@@ -274,7 +288,7 @@ branch_iter_write() {
 branch_iter_checkout() {
 	if branch=$(git config -f $toplevel/.gitmodules submodule.$name.branch 2>/dev/null)
 	then
-		git checkout $branch
+		branch_remote_checkout $branch
 	fi
 }
 
@@ -619,9 +633,11 @@ set_module_url_if_worktree() {
 		cd "$sm_path"
 		if git remote show "$remote" 1> /dev/null 2>&1
 		then
+			echo "Chi"
 			say "Set remote '$remote' url to '$sm_url' (from $noun)"
 			git remote set-url "$remote" "$sm_url"
 		else
+			echo "Bilasdfsadfly goat"
 			say "Adding remote '$remote' with url '$sm_url' (from $noun)"
 			git remote add "$remote" "$sm_url"
 		fi
