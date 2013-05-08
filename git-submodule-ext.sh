@@ -5,6 +5,13 @@
 # Lots of things copied and pasted from git-submodule.sh
 # TODO Add in other updates to git-submodule-foreach
 
+# TODO I think subshells are preventing things from properly dying on error. Need to fix
+
+# NOTE: Need to research `update --remote` to look into more functionality
+# Follow up - I think the update --remote does what this intended to do. Need to delete this function if it surely does so.
+# Use git_submodule_config to ease use of 'branch'
+# Transition from '--list LIST' to 'command opts -- LIST' - even in the case of foreach, womp, etc (will be better than current system of trying to pass var)
+
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
@@ -320,9 +327,6 @@ cmd_branch()
 	cmd_foreach $foreach_flags branch_iter_${command}
 }
 
-# TODO I think subshells are preventing things from properly dying on error. Need to fix
-
-# NOTE: Need to research `update --remote` to look into more functionality
 cmd_womp()
 {
 	# How to get current remote?
