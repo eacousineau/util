@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash --posix
 #
 # git-submodule-ext.sh: submodule extensions
 #
@@ -11,6 +11,8 @@
 # Follow up - I think the update --remote does what this intended to do. Need to delete this function if it surely does so.
 # Use git_submodule_config to ease use of 'branch'
 # Transition from '--list LIST' to 'command opts -- LIST' - even in the case of foreach, womp, etc (will be better than current system of trying to pass var)
+
+shopt -s xpg_echo
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
