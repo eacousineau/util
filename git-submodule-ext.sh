@@ -6,6 +6,9 @@
 # TODO Add in other updates to git-submodule-foreach
 
 # TODO I think subshells are preventing things from properly dying on error. Need to fix
+# Yep, they're definitely not dying...
+
+# TODO git `sube womp --reset` was not resetting to the correct sha. Need a submodule-level 'update' command, or a 'git sube rev-parse' command.
 
 # NOTE: Need to research `update --remote` to look into more functionality
 # Follow up - I think the update --remote does what this intended to do. Need to delete this function if it surely does so.
@@ -18,7 +21,7 @@ dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
-	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] <branch>"
+	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -294,10 +297,14 @@ branch_iter_write() {
 	branch=$(branch_get)
 	git config -f $toplevel/.gitmodules submodule.$name.branch $branch
 }
+branch_iter_get()
+{
+	branch="$(git config -f $toplevel/.gitmodules submodule.$name.branch 2>/dev/null)"
+}
 branch_iter_checkout() {
-	if branch=$(git config -f $toplevel/.gitmodules submodule.$name.branch 2>/dev/null)
+	if branch_iter_get
 	then
-		branch_remote_checkout $branch
+		branch_remote_checkout "$branch"
 	fi
 }
 
@@ -334,6 +341,7 @@ cmd_womp()
 	# How to get current remote?
 	remote=origin track=1 sync=1
 	force= oompf= no_fetch= recursive= force= foreach_list= constrain=
+	reset=
 	branch=
 	foreach_flags= update_flags=
 	no_top_level_merge=
@@ -351,6 +359,9 @@ cmd_womp()
 			--oompf)
 				force=1
 				oompf=1
+				;;
+			--reset)
+				reset=1
 				;;
 			--no-sync)
 				sync=
@@ -407,7 +418,21 @@ cmd_womp()
 		if test -z "$is_top"
 		then
 			# Show branch if it's a dry run?
-			test -z "$dry_run" && branch_iter_checkout
+			if test -z "$dry_run"
+			then
+				if branch_iter_get
+				then
+					if test -n "$reset"
+					then
+						# Assuming that submodule is already on update'd sha
+						echo "\tOld sha for $branch: $(git rev-parse --short $branch)"
+						echo "\tResetting to current sha: $(git rev-parse --short HEAD)"
+						git checkout -B "$branch"
+					else
+						branch_remote_checkout "$branch"
+					fi
+				fi
+			fi
 		elif test -n "$branch"
 		then
 			test -z "$dry_run" && git checkout $branch
@@ -430,7 +455,8 @@ cmd_womp()
 				fi
 				say "Force checkout"
 				test -z "$dry_run" && git checkout -fB $branch $remote/$branch
-			else
+			elif test -z "$reset" -o -n "$is_top"
+			then
 				say "Merge $remote/$branch"
 				test -z "$dry_run" && git merge $remote/$branch
 			fi
@@ -454,9 +480,10 @@ cmd_womp()
 
 	foreach_read_constrained
 
+	ask=
 	if test -n "$force"
 	then
-		echo "WARNING: A force womp will do a HARD reset on all of your branches to your remote's branch."
+		echo "WARNING: A force womp will do a HARD RESET on all of your branches to your remote's branch."
 		if test -n "$oompf"
 		then
 			echo "MORE WARNING: An oompf womp will remove all files before the reset."
@@ -466,6 +493,18 @@ cmd_womp()
 				echo "It can also leave it hard to womp back your old modules without doing an oompf womp"
 			fi
 		fi
+		ask=1
+	fi
+	if test -n "$reset"
+	then
+		test -z "$force" || die "Cannot --reset and --force"
+		echo "CAUTION: A reset womp will do a soft RESET the branches specified in .gitmodules to the commits pointed to by the supermodule."
+		echo "This will CHANGE what your local branch points to."
+		ask=1
+	fi
+
+	if test -n "$ask"
+	then
 		echo "Are you sure you want to continue? [Y/n]"
 		read choice
 		case "$choice" in
