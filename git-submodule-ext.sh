@@ -472,7 +472,7 @@ cmd_womp()
 			if test -z "$dry_run"
 			then
 				git submodule init -- $foreach_list
-				git submodule sync -- $foreach_list
+				test -n "$sync" && git submodule sync -- $foreach_list
 				git submodule update $update_flags -- $foreach_list || echo "Update failed... Still continuing"
 			fi
 		fi
