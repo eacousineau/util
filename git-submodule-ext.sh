@@ -435,7 +435,18 @@ cmd_womp()
 			fi
 		elif test -n "$branch"
 		then
-			test -z "$dry_run" && git checkout $branch
+			if test -z "$dry_run"
+			then
+				if test -n "$force"
+				then
+					# TODO This is redundant here. Make sure it works well with code down below.
+					say "Force checkout"
+					test -z "$dry_run" && git checkout -fB $branch $remote/$branch
+				else
+					# TODO Errors out if branch is ambiguous due to multiple origins
+					git checkout $branch
+				fi
+			fi
 		fi
 		branch=$(branch_get)
 
