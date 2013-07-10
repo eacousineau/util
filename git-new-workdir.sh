@@ -10,7 +10,7 @@ bin_path=$0
 bin=$(basename $bin_path)
 
 usage () {
-	echo "usage: $bin [--always-link-config] [--skip-submodules] [--bare] <repository> <new_workdir> [<branch>]"
+	echo "usage: $bin [--always-link-config] [--skip-submodules] [--bare] [-c | --constrain] <repository> <new_workdir> [<branch>]"
 	exit 127
 }
 
@@ -22,6 +22,7 @@ die () {
 always_link_config=
 bare=
 skip_submodules=
+constrain=
 
 while test $# -gt 0
 do
@@ -34,6 +35,9 @@ do
 			;;
 		--skip-submodules)
 			skip_submodules=1
+			;;
+		-c|--constrain)
+			constrain=1
 			;;
 		*)
 			break
@@ -185,10 +189,15 @@ then
 	# the one that was asked for)
 	git checkout -f $branch > /dev/null
 
-	# Update submodules
+	# Update submodules - TODO Use `git sube` to allow --constrain option to be recursive	?
 	if test -n "$is_supermodule"
 	then
-		git submodule init
-		git submodule update --recursive
+		if test -n "$constrain"
+		then
+			modules=$(git config scm.focusGroup)
+		else
+			modules=
+		fi
+		git submodule update --init --recursive -- $modules
 	fi
 fi
