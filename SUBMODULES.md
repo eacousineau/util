@@ -56,6 +56,30 @@ This is post-order, recursive, and includes the top-level, so `git gui` is calle
 
 Right now, Ubuntu 12.04 uses `v1.7.9.5`. There is more Git submodule functionality in `v1.8.2`, which you can build from source. Most notable difference is that later versions use relative paths for submodule paths, which simplifies stuff a lot (as in you can move your supermodule and not have to climb through mounds of files).
 
+# Direct Supermodule Cloning 
+
+To recursively clone another person's supermodule
+
+	git clone git://bobby.local/repo/.git
+	cd repo
+	git sfe -t -r 'git sube set-url base && yes | git sube womp -T --no-sync --reset'
+
+Afterwards, restore original urls, then add the direct clone url
+
+	git remote add bobby "$(git config remote.origin.url)"
+	git submodule sync --recursive
+	git sube set-url -r --remote bobby base
+
+## Their Branches
+
+If they haven't used `git sube branch write`, you can still peek at their branches with a remote HEAD. See all of their branches using the following command:
+
+	git tsferp 'remote=origin; tmp=$(git name-rev --name-only $remote/HEAD); echo "\tMine: $(git bg)\n\tTheirs: $tmp"'
+
+To reset to their branches
+
+	git tsferp 'remote=origin; tmp=$(git name-rev --name-only $remote/HEAD); git checkout -B $tmp $remote/$tmp'
+
 # Other Articles
 
 *	[Pro Git Book](http://git-scm.com/book/en/Git-Tools-Submodules)
