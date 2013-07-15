@@ -4,13 +4,15 @@
 # TODO Add a '--update-linked-config' option to go through and update linked configs?
 # NOTE: Not robust to submodules being created after the link. New workdirs should be disposable.
 
+# TODO Add file that points to original directory
+
 # Wait... How does this work if worktree is unset? Seems like doing submodule init or update somehow fixes that... ???
 
 bin_path=$0
 bin=$(basename $bin_path)
 
 usage () {
-	echo "usage: $bin [--always-link-config] [--skip-submodules] [--bare] [-c | --constrain] <repository> <new_workdir> [<branch>]"
+	echo "usage: $bin [--always-link-config] [--skip-submodules] [--bare] [-c | --constrain] [--link-head] <repository> <new_workdir> [<branch>]"
 	exit 127
 }
 
@@ -23,6 +25,7 @@ always_link_config=
 bare=
 skip_submodules=
 constrain=
+link_head=
 
 while test $# -gt 0
 do
@@ -38,6 +41,9 @@ do
 			;;
 		-c|--constrain)
 			constrain=1
+			;;
+		--link-head)
+			link_head=1
 			;;
 		*)
 			break
@@ -146,6 +152,7 @@ x=modules
 orig_modules="$orig_gitdir/$x"
 new_modules="$new_gitdir/$x"
 is_supermodule=
+# Still checkout submodules if bare? Yes, that way we can see the log
 if test -d "$orig_modules" -a -z "$skip_submodules"
 then
 	is_supermodule=1
@@ -179,7 +186,12 @@ then
 fi
 
 # copy the HEAD from the original repository as a default branch
-cp "$orig_gitdir/HEAD" $new_gitdir/HEAD
+if test -z "$link_head"
+	cp "$orig_gitdir/HEAD" $new_gitdir/HEAD
+else
+	# Link it if so desired
+	ln -s "$orig_gitdir/HEAD" $new_gitdir/HEAD
+fi
 
 if test -z "$bare"
 then

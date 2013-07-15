@@ -21,7 +21,8 @@ dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
-	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>"
+	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>
+	or: $dashless config-sync [FOREACH_FLAGS]"
 OPTIONS_SPEC=
 . git-sh-setup
 . git-sh-i18n
@@ -295,7 +296,15 @@ branch_remote_checkout() { (
 
 branch_iter_write() {
 	branch=$(branch_get)
-	git config -f $toplevel/.gitmodules submodule.$name.branch $branch
+	file="$toplevel/.gitmodules"
+	var="submodule.$name.branch"
+	if ! test "$branch" = "HEAD"
+	then
+		git config -f $file $var $branch
+	else
+		# Delete config option
+		git config -f $file --unset $var
+	fi
 }
 branch_iter_get()
 {
@@ -689,11 +698,9 @@ set_module_url_if_worktree() {
 		cd "$sm_path"
 		if git remote show "$remote" 1> /dev/null 2>&1
 		then
-			echo "Chi"
 			say "Set remote '$remote' url to '$sm_url' (from $noun)"
 			git remote set-url "$remote" "$sm_url"
 		else
-			echo "Bilasdfsadfly goat"
 			say "Adding remote '$remote' with url '$sm_url' (from $noun)"
 			git remote add "$remote" "$sm_url"
 		fi
@@ -715,7 +722,46 @@ set_module_config_url() {
 	say "Set $nouns url to '$sm_url'"
 }
 
+cmd_config_sync() {
+	remote=
+	foreach_flags="--no-cd"
 
+	# NOTE: Will have to iterate using custom iteration. This will not work yet (since submodule has no mapping)
+	die "Not yet implemented"
+
+	while test $# -ne 0
+	do
+		case $1 in
+			-r|--recursive|-c|--constrain)
+				foreach_flags="$foreach_flags $1"
+				;;
+			--remote)
+				remote=$2
+				shift
+				;;
+			-h|--help|--*)
+				usage
+				;;
+			*)
+				break
+				;;
+		esac
+		shift
+	done
+	
+	# --include-staged option is somehting to be wary of...
+	cmd_foreach $foreach_flags config_sync_iter
+}
+
+config_sync_iter() {
+	# How to handle modules in config that do not exist? Meh.
+	cmd_pre=git config -f .gitmodules
+	if test -z "$($cmd_pre --get "submodule.$name.path")"
+	then
+		$cmd_pre "submodule.$name.path" "$path"
+		set_url_repo_iter
+	fi
+}
 
 command=
 while test $# != 0 && test -z "$command"
@@ -726,6 +772,9 @@ do
 		;;
 	set-url)
 		command="set_url"
+		;;
+	config-sync)
+		command="config_sync"
 		;;
 	-q|--quiet)
 		GIT_QUIET=1
