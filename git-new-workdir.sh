@@ -187,6 +187,7 @@ fi
 
 # copy the HEAD from the original repository as a default branch
 if test -z "$link_head"
+then
 	cp "$orig_gitdir/HEAD" $new_gitdir/HEAD
 else
 	# Link it if so desired
