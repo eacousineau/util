@@ -518,7 +518,7 @@ cmd_womp()
 	if test -n "$reset"
 	then
 		test -z "$force" || die "Cannot --reset and --force"
-		echo "CAUTION: A reset womp will do a soft RESET the branches specified in .gitmodules to the commits pointed to by the supermodule."
+		echo "CAUTION: A reset womp will RESET the branch name specified in .gitmodules to the commits pointed to by the supermodule."
 		echo "This will CHANGE what your local branch points to."
 		ask=1
 	fi
