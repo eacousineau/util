@@ -8,12 +8,33 @@
 
 # Wait... How does this work if worktree is unset? Seems like doing submodule init or update somehow fixes that... ???
 
+# Use `git rev-parse --show-toplevel`
+
 bin_path=$0
 bin=$(basename $bin_path)
+# See `git-repack`
+OPTIONS_SPEC="\
+git-new-workdir [options] <repository> <new_workdir> [<commit>]
+git-new-workdir --show-orig <repository>
+git-new-workdir [--fresh] <workdir> [<commit>]
+--
+bare					checkout as a bare git repository
+link-head				link 'HEAD' file as well (useful for tracking stuff as submodules)
+always-link-config		link 'config' file, even if using on a submodule
+c,constrain				use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
+skip-submodules			do not try to checkout submodules
+show-orig				print original repo's directory
+fresh					delete old workdir and re-check out
+"
+LONG_USAGE='Checkout a branch / commit of an existing Git repository to a new location,
+linking to the original object database, refs, config (if not a supermodule), etc., so
+that the git database is the same between the original Git repository and the new
+working directory.'
 
 usage () {
-	echo "usage: $bin [--always-link-config] [--skip-submodules] [--bare] [-c | --constrain] [--link-head] <repository> <new_workdir> [<branch>]"
-	exit 127
+	# TODO Use git-sh-setup
+	echo "usage: $OPTIONS_SPEC\n$LONG_USAGE"
+	exit ${1-127}
 }
 
 die () {
@@ -26,6 +47,8 @@ bare=
 skip_submodules=
 constrain=
 link_head=
+show_orig=
+fresh=
 
 while test $# -gt 0
 do
@@ -45,6 +68,15 @@ do
 		--link-head)
 			link_head=1
 			;;
+		--show-orig)
+			show_orig=1
+			;;
+		--fresh)
+			fresh=1
+			;;
+		-h|--help)
+			usage 0
+			;;
 		*)
 			break
 			;;
@@ -52,20 +84,92 @@ do
 	shift
 done
 
-if test $# -lt 2 || test $# -gt 3
-then
-	usage
-fi
+get_git_dir()
+{
+	( cd $1 && git rev-parse --git-dir ) 2>/dev/null 
+}
+get_orig_gitdir()
+{
+	# want to make sure that what is pointed to has a .git directory ...
+	orig_gitdir=$(get_git_dir "$orig_workdir") || die "Not a git repository: \"$orig_workdir\""
+	# make sure the links use full paths
+	case "$orig_gitdir" in
+	.git)
+		orig_gitdir="$orig_workdir/.git"
+		;;
+	.)
+		orig_gitdir=$orig_workdir
+		;;
+	esac
+	orig_gitdir=$(readlink -f $orig_gitdir)
+}
+git_dir_check_hack()
+{
+	( cd $1 && test -e HEAD -a -e config -a -d refs )
+}
 
 if test -n "$always_link_config"
 then
 	recurse_flags="--always-link-config"
 fi
 
-
 orig_workdir=$1
+
+get_orig_gitdir
+
+if test -n "$show_orig"
+then
+	cd $orig_gitdir
+	test -h "$orig_gitdir/refs" || die "Not a new 	workdir"
+	if test -e orig_workdir
+	then
+		cat orig_workdir
+	else
+		echo "WARNING: This is the gitdir, not the workdir. Not sure how to accurately back that out." >&2
+		real_gitdir=$(dirname $(readlink -f $orig_gitdir/refs))
+		echo "$real_gitdir"
+	fi
+	return 0
+fi
+
+# See if it's a workdir
+if test -h "$orig_gitdir/refs"
+then
+	echo "This is a workdir."
+	old_workdir="$orig_workdir"
+	orig_workdir=$(git-new-workdir --show-orig "$orig_workdir") || die "\tCould not resolve original directory"
+	if test -n "$fresh"
+	then
+		# What about branch?
+		echo "Removing: $old_workdir"
+		# TODO
+		echo rm -rf "$old_workdir"
+		shift
+		echo git-new-workdir "$orig_workdir" "$old_workdir" "$@"
+	else
+		echo "\tResolving to original workdir: $orig_workdir"
+		get_orig_gitdir
+	fi
+elif test -n "$fresh"
+then
+	die "Cannot do a fresh new-workdir on a non-workdir."
+fi
+
+if test $# -lt 2 || test $# -gt 3
+then
+	usage
+fi
+
 new_workdir=$2
 branch=$3
+
+# don't recreate a workdir over an existing repository
+orig_workdir_abs="$(cd $orig_workdir && pwd)"
+if test -e "$new_workdir"
+then
+	new_workdir="$new_workdir/$(basename $orig_workdir_abs)"
+	# die "destination directory '$new_workdir' already exists."
+fi
 
 if test -z "$bare"
 then
@@ -74,47 +178,12 @@ else
 	new_gitdir="$new_workdir"
 fi
 
-get_git_dir()
-{
-	( cd $1 && git rev-parse --git-dir ) 2>/dev/null 
-}
-git_dir_check_hack()
-{
-	( cd $1 && test -e HEAD -a -e config -a -d refs )
-}
-
-# want to make sure that what is pointed to has a .git directory ...
-orig_gitdir=$(get_git_dir "$orig_workdir") || die "Not a git repository: \"$orig_workdir\""
-# make sure the links use full paths
-case "$orig_gitdir" in
-.git)
-	orig_gitdir="$orig_workdir/.git"
-	;;
-.)
-	orig_gitdir=$orig_workdir
-	;;
-esac
-orig_gitdir=$(readlink -f $orig_gitdir)
-
 # don't link to a configured bare repository
 isbare=$(git --git-dir="$orig_gitdir" config --bool --get core.bare)
 if test ztrue = z$isbare -a -z "$bare"
 then
 	die "\"$orig_gitdir\" has core.bare set to true," \
 		" remove from \"$orig_gitdir/config\" to use $0"
-fi
-
-# don't link to a workdir
-if test -h "$orig_gitdir/config"
-then
-	die "\"$orig_workdir\" is a working directory only, please specify" \
-		"a complete repository."
-fi
-
-# don't recreate a workdir over an existing repository
-if test -e "$new_workdir"
-then
-	die "destination directory '$new_workdir' already exists."
 fi
 
 echo "[ Old -> New ]\n\t$orig_workdir\n\t$new_workdir"
@@ -134,6 +203,9 @@ do
 	esac
 	ln -s "$orig_gitdir/$x" "$new_gitdir/$x"
 done
+
+# Add in quick file that points to original work dir
+echo "$orig_workdir_abs" > "$new_gitdir/orig_workdir"
 
 x=config
 orig_config="$orig_gitdir/$x"
