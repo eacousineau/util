@@ -306,6 +306,7 @@ branch_iter_write() {
 		# Delete config option
 		git config -f $file --unset $var
 	fi
+	return 0
 }
 branch_iter_get()
 {
