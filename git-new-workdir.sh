@@ -19,8 +19,12 @@ git-new-workdir --show-orig <repository>
 --
 bare                 checkout as a bare git repository
 link-head            link 'HEAD' file as well (useful for tracking stuff as submodules)
+no-checkout          don't checkout the files (useful for submodules)
+
  Management
 show-orig            print original repo's directory
+update-config        replace workdir's config with original's config
+
  Submodules
 always-link-config   link 'config' file, even if using on a submodule
 c,constrain          use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
@@ -40,6 +44,8 @@ skip_submodules=
 constrain=
 link_head=
 show_orig=
+update_config=
+no_checkout=
 
 while test $# -gt 0
 do
@@ -56,6 +62,10 @@ do
 		link_head=1;;
 	--show-orig)
 		show_orig=1;;
+	--update-config)
+		update_config=1;;
+	--no-checkout)
+		no_checkout=1;;
 	# -h|--help)
 	# 	usage 0;;
 	--) shift; break;;
@@ -83,9 +93,35 @@ get_orig_gitdir()
 	esac
 	orig_gitdir=$(readlink -f $orig_gitdir)
 }
+get_new_gitdir()
+{
+	if test -z "$bare"
+	then
+		new_gitdir="$new_workdir/.git"
+	else
+		new_gitdir="$new_workdir"
+	fi
+}
+
 git_dir_check_hack()
 {
 	( cd $1 && test -e HEAD -a -e config -a -d refs )
+}
+
+copy_config()
+{
+	x=config
+	orig_config="$orig_gitdir/$x"
+	new_config="$new_gitdir/$x"
+	# Allow submodules to be checked out
+	if test -z "$always_link_config" && git config -f "$orig_config" core.worktree > /dev/null
+	then
+		echo "\t[ Note ] Copying .git/config and unsetting core.worktree"
+		cp "$orig_gitdir/$x" "$new_config"
+		git config -f "$new_config" --unset core.worktree
+	else
+		ln -s "$orig_config" "$new_config"
+	fi
 }
 
 if test -n "$always_link_config"
@@ -93,6 +129,7 @@ then
 	recurse_flags="--always-link-config"
 fi
 
+# TODO Make first argument just 'workdir', and later assign it to orig workdir?
 orig_workdir=$1
 get_orig_gitdir
 
@@ -114,6 +151,25 @@ then
 			cd .. && workdir="$PWD"
 		fi
 		echo "$workdir"
+	fi
+	return 0
+fi
+
+if test -n "$update_config"
+then
+	new_workdir="$orig_workdir"
+	get_new_gitdir
+	orig_workdir="$(git-new-workdir --show-orig $orig_workdir)" || exit $?
+	get_orig_gitdir
+	if test -h "$new_gitdir/config"
+	then
+		echo "config is already a symlink, no need to update"
+	else
+		rm -f "$new_gitdir/config"
+		# Need to move HEAD so that Git doesn't complain about worktree stuff???
+		mv "$new_gitdir/HEAD" "$new_gitdir/HEAD_"
+		copy_config
+		mv "$new_gitdir/HEAD_" "$new_gitdir/HEAD"
 	fi
 	return 0
 fi
@@ -144,12 +200,7 @@ then
 	# die "destination directory '$new_workdir' already exists."
 fi
 
-if test -z "$bare"
-then
-	new_gitdir="$new_workdir/.git"
-else
-	new_gitdir="$new_workdir"
-fi
+get_new_gitdir
 
 # don't link to a configured bare repository
 isbare=$(git --git-dir="$orig_gitdir" config --bool --get core.bare)
@@ -180,18 +231,7 @@ done
 # Add in quick file that points to original work dir
 echo "$orig_workdir_abs" > "$new_gitdir/orig_workdir"
 
-x=config
-orig_config="$orig_gitdir/$x"
-new_config="$new_gitdir/$x"
-# Allow submodules to be checked out
-if test -z "$always_link_config" && git config -f "$orig_config" core.worktree > /dev/null
-then
-	echo "\t[ Note ] Copying .git/config and unsetting core.worktree"
-	cp "$orig_gitdir/$x" "$new_config"
-	git config -f "$new_config" --unset core.worktree
-else
-	ln -s "$orig_config" "$new_config"
-fi
+copy_config
 
 x=modules
 orig_modules="$orig_gitdir/$x"
@@ -236,10 +276,10 @@ then
 	cp "$orig_gitdir/HEAD" $new_gitdir/HEAD
 else
 	# Link it if so desired
-	ln -s "$orig_gitdir/HEAD" $new_gitdir/HEAD
+	ln "$orig_gitdir/HEAD" $new_gitdir/HEAD
 fi
 
-if test -z "$bare"
+if test -z "$bare" -a -z "$no_checkout"
 then
 	# now setup the workdir
 	cd "$new_workdir"
