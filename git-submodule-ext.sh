@@ -128,6 +128,7 @@ cmd_foreach()
 	constrain=
 	recurse_flags=--not-top
 	is_top=1
+	# Change this to '--cached'
 	include_staged=
 	no_cd=
 	while test $# -ne 0
@@ -724,10 +725,11 @@ set_module_config_url() {
 
 cmd_config_sync() {
 	remote=
-	foreach_flags="--no-cd"
+	foreach_flags="-q"
 
-	# NOTE: Will have to iterate using custom iteration. This will not work yet (since submodule has no mapping)
-	die "Not yet implemented"
+	echo "Updating entires in .gitmodules..."
+	# TODO Will have to iterate using custom iteration. This will not work yet (since submodule has no mapping)
+	#die "Not yet implemented"
 
 	while test $# -ne 0
 	do
@@ -754,13 +756,16 @@ cmd_config_sync() {
 }
 
 config_sync_iter() {
-	# How to handle modules in config that do not exist? Meh.
-	cmd_pre=git config -f .gitmodules
-	if test -z "$($cmd_pre --get "submodule.$name.path")"
-	then
-		$cmd_pre "submodule.$name.path" "$path"
-		set_url_repo_iter
-	fi
+	# Just overwrite everything in .gitmodules
+	test -z "$remote" && remote=$(get_default_remote || :)
+	name=$(basename $PWD)
+	echo "Adding $name"
+	branch=$(git bg)
+	url=$(git config remote.$remote.url)
+	cd $toplevel
+	cmd="git config -f .gitmodules submodule.$name"
+	${cmd}.path $name
+	${cmd}.url $url
 }
 
 command=
