@@ -125,9 +125,16 @@ then
 	then
 		cat orig_workdir
 	else
-		echo "WARNING: This is the gitdir, not the workdir. Not sure how to accurately back that out." >&2
 		real_gitdir=$(dirname $(readlink -f $orig_gitdir/refs))
-		echo "$real_gitdir"
+		cd $real_gitdir
+		workdir=$(git rev-parse --show-toplevel)
+		if test -z "$workdir"
+		then
+			# Just try to go up a directory
+			echo "WARNING: Could not get --show-toplevel to work. Just going to guess it's up a directory." >&2
+			cd .. && workdir="$PWD"
+		fi
+		echo "$workdir"
 	fi
 	return 0
 fi
@@ -142,7 +149,7 @@ then
 	then
 		# What about branch?
 		echo "Removing: $old_workdir"
-		# TODO
+		# TODO This is kinda dump, just do this manually for now
 		echo rm -rf "$old_workdir"
 		shift
 		echo git-new-workdir "$orig_workdir" "$old_workdir" "$@"
