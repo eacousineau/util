@@ -16,31 +16,23 @@ bin=$(basename $bin_path)
 OPTIONS_SPEC="\
 git-new-workdir [options] <repository> <new_workdir> [<commit>]
 git-new-workdir --show-orig <repository>
-git-new-workdir [--fresh] <workdir> [<commit>]
 --
-bare					checkout as a bare git repository
-link-head				link 'HEAD' file as well (useful for tracking stuff as submodules)
-always-link-config		link 'config' file, even if using on a submodule
-c,constrain				use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
-skip-submodules			do not try to checkout submodules
-show-orig				print original repo's directory
-fresh					delete old workdir and re-check out
+bare                 checkout as a bare git repository
+link-head            link 'HEAD' file as well (useful for tracking stuff as submodules)
+ Management
+show-orig            print original repo's directory
+ Submodules
+always-link-config   link 'config' file, even if using on a submodule
+c,constrain          use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
+skip-submodules      do not try to checkout submodules
 "
+# How to get this to show up in basic help? It seems to be either option spec or long usage....
 LONG_USAGE='Checkout a branch / commit of an existing Git repository to a new location,
 linking to the original object database, refs, config (if not a supermodule), etc., so
 that the git database is the same between the original Git repository and the new
 working directory.'
 
-usage () {
-	# TODO Use git-sh-setup
-	echo "usage: $OPTIONS_SPEC\n$LONG_USAGE"
-	exit ${1-127}
-}
-
-die () {
-	echo $@
-	exit 128
-}
+. git-sh-setup
 
 always_link_config=
 bare=
@@ -48,38 +40,26 @@ skip_submodules=
 constrain=
 link_head=
 show_orig=
-fresh=
 
 while test $# -gt 0
 do
 	case "$1" in
-		--always-link-config)
-			always_link_config=1
-			;;
-		--bare)
-			bare=1
-			;;
-		--skip-submodules)
-			skip_submodules=1
-			;;
-		-c|--constrain)
-			constrain=1
-			;;
-		--link-head)
-			link_head=1
-			;;
-		--show-orig)
-			show_orig=1
-			;;
-		--fresh)
-			fresh=1
-			;;
-		-h|--help)
-			usage 0
-			;;
-		*)
-			break
-			;;
+	--always-link-config)
+		always_link_config=1;;
+	--bare)
+		bare=1;;
+	--skip-submodules)
+		skip_submodules=1;;
+	-c|--constrain)
+		constrain=1;;
+	--link-head)
+		link_head=1;;
+	--show-orig)
+		show_orig=1;;
+	# -h|--help)
+	# 	usage 0;;
+	--) shift; break;;
+	*) usage;;
 	esac
 	shift
 done
@@ -114,13 +94,12 @@ then
 fi
 
 orig_workdir=$1
-
 get_orig_gitdir
 
 if test -n "$show_orig"
 then
 	cd $orig_gitdir
-	test -h "$orig_gitdir/refs" || die "Not a new 	workdir"
+	test -h "$orig_gitdir/refs" || die "'$orig_workdir' is not a new workdir (just a Git repo?)"
 	if test -e orig_workdir
 	then
 		cat orig_workdir
@@ -139,27 +118,14 @@ then
 	return 0
 fi
 
-# See if it's a workdir
+# See if it's a workdir, resolve orig_workdir to that working directory
 if test -h "$orig_gitdir/refs"
 then
 	echo "This is a workdir."
 	old_workdir="$orig_workdir"
 	orig_workdir=$(git-new-workdir --show-orig "$orig_workdir") || die "\tCould not resolve original directory"
-	if test -n "$fresh"
-	then
-		# What about branch?
-		echo "Removing: $old_workdir"
-		# TODO This is kinda dump, just do this manually for now
-		echo rm -rf "$old_workdir"
-		shift
-		echo git-new-workdir "$orig_workdir" "$old_workdir" "$@"
-	else
-		echo "\tResolving to original workdir: $orig_workdir"
-		get_orig_gitdir
-	fi
-elif test -n "$fresh"
-then
-	die "Cannot do a fresh new-workdir on a non-workdir."
+	echo "\tResolving to original workdir: $orig_workdir"
+	get_orig_gitdir
 fi
 
 if test $# -lt 2 || test $# -gt 3
