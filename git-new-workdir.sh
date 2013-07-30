@@ -1,14 +1,6 @@
 #!/bin/sh
 
-# Supermodule stuff works
-# TODO Add a '--update-linked-config' option to go through and update linked configs?
-# NOTE: Not robust to submodules being created after the link. New workdirs should be disposable.
-
-# TODO Add file that points to original directory
-
-# Wait... How does this work if worktree is unset? Seems like doing submodule init or update somehow fixes that... ???
-
-# Use `git rev-parse --show-toplevel`
+# update-head - How to update to a detached head?
 
 bin_path=$0
 bin=$(basename $bin_path)
@@ -24,11 +16,14 @@ no-checkout          don't checkout the files (useful for submodules)
  Management
 show-orig            print original repo's directory
 update-config        replace workdir's config with original's config
+update-head          replace workdir's HEAD with original's HEAD (since it can be made a symlink).\
+ Note that this does not update the repo's index nor tree. Use 'git reset HEAD' or 'git checkout -f HEAD' to resolve that.
 
  Submodules
-always-link-config   link 'config' file, even if using on a submodule
+always-link-config   link 'config' file, even if using on a submodule.\
+ Otherwise, a copy of the config is made.
 c,constrain          use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
-skip-submodules      do not try to checkout submodules
+ignore-submodules    do not try to checkout submodules
 "
 # How to get this to show up in basic help? It seems to be either option spec or long usage....
 LONG_USAGE='Checkout a branch / commit of an existing Git repository to a new location,
@@ -40,11 +35,12 @@ working directory.'
 
 always_link_config=
 bare=
-skip_submodules=
+ignore_submodules=
 constrain=
 link_head=
 show_orig=
 update_config=
+update_head=
 no_checkout=
 
 while test $# -gt 0
@@ -54,8 +50,8 @@ do
 		always_link_config=1;;
 	--bare)
 		bare=1;;
-	--skip-submodules)
-		skip_submodules=1;;
+	--ignore-submodules)
+		ignore_submodules=1;;
 	-c|--constrain)
 		constrain=1;;
 	--link-head)
@@ -64,10 +60,10 @@ do
 		show_orig=1;;
 	--update-config)
 		update_config=1;;
+	--update-head)
+		update_head=1;;
 	--no-checkout)
 		no_checkout=1;;
-	# -h|--help)
-	# 	usage 0;;
 	--) shift; break;;
 	*) usage;;
 	esac
@@ -78,6 +74,7 @@ get_git_dir()
 {
 	( cd $1 && git rev-parse --git-dir ) 2>/dev/null 
 }
+
 get_orig_gitdir()
 {
 	# want to make sure that what is pointed to has a .git directory ...
@@ -93,6 +90,7 @@ get_orig_gitdir()
 	esac
 	orig_gitdir=$(readlink -f $orig_gitdir)
 }
+
 get_new_gitdir()
 {
 	if test -z "$bare"
@@ -155,12 +153,18 @@ then
 	return 0
 fi
 
-if test -n "$update_config"
-then
+resolve_orig_gitdir()
+{
+	# Crappy function names, bad names...
 	new_workdir="$orig_workdir"
 	get_new_gitdir
 	orig_workdir="$(git-new-workdir --show-orig $orig_workdir)" || exit $?
 	get_orig_gitdir
+}
+
+if test -n "$update_config"
+then
+	resolve_orig_gitdir
 	if test -h "$new_gitdir/config"
 	then
 		echo "config is already a symlink, no need to update"
@@ -172,6 +176,13 @@ then
 		mv "$new_gitdir/HEAD_" "$new_gitdir/HEAD"
 	fi
 	return 0
+fi
+
+if test -n "$update_head"
+then
+	resolve_orig_gitdir
+	# Meh, ignore staging
+	cp "$orig_gitdir/HEAD" "$new_gitdir/HEAD"
 fi
 
 # See if it's a workdir, resolve orig_workdir to that working directory
@@ -238,7 +249,7 @@ orig_modules="$orig_gitdir/$x"
 new_modules="$new_gitdir/$x"
 is_supermodule=
 # Still checkout submodules if bare? Yes, that way we can see the log
-if test -d "$orig_modules" -a -z "$skip_submodules"
+if test -d "$orig_modules" -a -z "$ignore_submodules"
 then
 	is_supermodule=1
 	# TODO Allow for directory structure... Checking if a module is 
@@ -276,6 +287,7 @@ then
 	cp "$orig_gitdir/HEAD" $new_gitdir/HEAD
 else
 	# Link it if so desired
+	echo "WARNING: This does not seem to work." >&2
 	ln "$orig_gitdir/HEAD" $new_gitdir/HEAD
 fi
 
