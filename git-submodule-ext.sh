@@ -227,8 +227,6 @@ cmd_foreach()
 	include_staged=
 	no_cd=
 
-	echo $@
-
 	while test $# -ne 0
 	do
 		case "$1" in
@@ -449,7 +447,8 @@ cmd_womp()
 	force= oompf= no_fetch= recursive= force= foreach_list= constrain=
 	reset=
 	branch=
-	foreach_flags= update_flags=
+	foreach_flags=
+	update_flags=--checkout
 	no_top_level_merge=
 	dry_run=
 	while test $# -gt 0
@@ -480,7 +479,7 @@ cmd_womp()
 				;;
 			-N|--no-fetch)
 				no_fetch=1
-				update_flags=-N
+				update_flags="$update_flags -N"
 				;;
 			-c|--constrain)
 				constrain=1
