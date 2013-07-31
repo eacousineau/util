@@ -116,6 +116,40 @@ foreach_read_constrained() {
 	fi
 }
 
+cmd_list()
+{
+	# No use for --recursive option right now
+	constrain=
+	raw=
+	# Show only those in working tree?
+	while test $# -ne 0
+	do
+		case "$1" in
+		-c|--constrain) constrain=1;;
+		--raw) raw=1;;
+		*) usage;;
+		esac
+		shift
+	done
+
+	foreach_list=
+	if test -n "$constrain"
+	then
+		foreach_list=$(git config scm.focusGroup)
+	fi
+
+	module_list $foreach_list |
+	while read mode sha1 stage sm_path
+	do
+		if test -z "$raw"
+		then
+			echo $sm_path
+		else
+			echo $mode $sha1 $stage "$sm_path"
+		fi
+	done
+}
+
 # Hack (for now) to pass lists in to foreach
 foreach_list=
 
@@ -773,7 +807,7 @@ command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | womp | branch)
+	foreach | womp | branch | list)
 		command=$1
 		;;
 	set-url)
