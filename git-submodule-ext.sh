@@ -18,12 +18,73 @@
 shopt -s xpg_echo
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
-USAGE="foreach [-l | --list LIST] [-c | --constrain] [-t | --top-level] [-r | --recursive] [-p | --post-order] <command>
+USAGE="foreach  <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
 	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>
 	or: $dashless config-sync [FOREACH_FLAGS]"
 OPTIONS_SPEC=
+
+USAGE='[list|branch|set-url|womp|config-sync]'
+LONG_USAGE="\
+$dashless list [-c | --constrain]
+    list staged submodules in current repo.
+
+$dashless foreach [options] command
+    iterate through submodules, using eval subshell (bash) in current process
+variables: \$name, \$path, \$sm_ptah, \$toplevel, \$is_top.
+be wary of escaping!
+    -c, --constrain            Use git-config scm.focusGroup to constrain iteration
+    -t, --top-level            Include top-level
+    -r, --recursive            Iterate recursively
+    -p, --post-order           Do post-order traversal (default is pre-order, top-level first)
+    -i, --include-staged       Include staged-only submodules (TODO Make --cached only)
+    --no-cd                    Do not cd to submodules directory (TODO Remove)
+
+$dashless set-url [foreach-options] [repo | config | base]
+    url synchronization utilities (TODO Add [modules] to the end)
+    --remote                   Use specified remote to retrieve url. Otherwise use default.
+    subcommands
+      repo                     Set repo's url from GIT_CONFIG
+        --use-gitmodules       Set from .gitmodules instead, copying url to GIT_CONFIG
+        -S, --no-sync          With --use-gitmodules, do not copy to GIT_CONFIG
+      config                   Set config's url, reading repo's url
+        --set-gitmodules       Set url in .gitmodules as well
+      base                     Set url according to base url (TODO Deprecate and remove?)
+
+$dashless womp [foreach-options] [options] [<commit>]
+    general purpose updating utility. By default, this will update the supermodules, \
+synchronize urls, checkout branches specified in .gitmodules, and attempt to merge \
+changes from \$remote's branch of same name.
+    --remote                   Use specified remote, default if unspecified
+    -f, --force                Use force checkout
+    --oompf                    Delete worktree of supermodule and reinitialize submodules.
+Preserves local history if your gitdir's are in $toplevel/.git/modules, destructive
+otherwise.
+    --reset                    Instead of --force / --oompf, will update submodule to staged
+SHA1, and reset branch name (if specified) to that SHA.
+    --no-sync                  Do not synchronize urls
+    --no-track                 Do not set branches to track
+    -T, --no-top-level-merge   Do not merge supermodule's remote branch
+    -N, --no-fetch             Do not fetch from \$remote
+    -n, --dry-run              (Semi-supported) Don't do anythnig, just print
+
+$dashless branch [write | checkout]
+    useful branch operations
+    subcommands
+      write                    Record submodules branches to .gitmodules. If detached head, will
+delete branch config entry.
+      checkout [checkout-options]
+                               Checkout branch (if) specified in .gitmodules 
+
+$dashless config-sync
+    will go through and add worktree submodules to .gitmodules, writing each one's name, path,
+and url. Useful for adding in new ones.
+
+See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
+
+OPTIONS_SPEC=
+
 . git-sh-setup
 . git-sh-i18n
 . git-parse-remote

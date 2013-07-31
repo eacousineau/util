@@ -182,7 +182,9 @@ if test -n "$update_head"
 then
 	resolve_orig_gitdir
 	# Meh, ignore staging
+	echo "Updating head"
 	cp "$orig_gitdir/HEAD" "$new_gitdir/HEAD"
+	return 0
 fi
 
 # See if it's a workdir, resolve orig_workdir to that working directory
