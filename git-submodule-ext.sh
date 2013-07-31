@@ -58,10 +58,10 @@ synchronize urls, checkout branches specified in .gitmodules, and attempt to mer
 changes from \$remote's branch of same name.
     --remote                   Use specified remote, default if unspecified
     -f, --force                Use force checkout
-    --oompf                    Delete worktree of supermodule and reinitialize submodules.
-Preserves local history if your gitdir's are in $toplevel/.git/modules, destructive
+    --oompf                    Delete worktree of supermodule and reinitialize submodules. \
+Preserves local history if your gitdir's are in $toplevel/.git/modules, destructive \
 otherwise.
-    --reset                    Instead of --force / --oompf, will update submodule to staged
+    --reset                    Instead of --force / --oompf, will update submodule to staged \
 SHA1, and reset branch name (if specified) to that SHA.
     --no-sync                  Do not synchronize urls
     --no-track                 Do not set branches to track
@@ -72,14 +72,14 @@ SHA1, and reset branch name (if specified) to that SHA.
 $dashless branch [write | checkout]
     useful branch operations
     subcommands
-      write                    Record submodules branches to .gitmodules. If detached head, will
+      write                    Record submodules branches to .gitmodules. If detached head, will \
 delete branch config entry.
       checkout [checkout-options]
                                Checkout branch (if) specified in .gitmodules 
 
 $dashless config-sync
-    will go through and add worktree submodules to .gitmodules, writing each one's name, path,
-and url. Useful for adding in new ones.
+    will go through and add worktree submodules to .gitmodules, writing each one's name, path, \
+and url. Useful for making sure submodules added via direct clone or git-new-workdir are properly mapped.
 
 See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
 
@@ -226,12 +226,12 @@ cmd_foreach()
 	# Change this to '--cached'
 	include_staged=
 	no_cd=
+
+	echo $@
+
 	while test $# -ne 0
 	do
 		case "$1" in
-		-q|--quiet)
-			GIT_QUIET=1
-			;;
 		-r|--recursive)
 			recursive=1
 			recurse_flags="$recurse_flags $1"
@@ -821,7 +821,7 @@ set_module_config_url() {
 
 cmd_config_sync() {
 	remote=
-	foreach_flags="-q"
+	foreach_flags=""
 
 	echo "Updating entires in .gitmodules..."
 	# TODO Will have to iterate using custom iteration. This will not work yet (since submodule has no mapping)
@@ -848,7 +848,7 @@ cmd_config_sync() {
 	done
 	
 	# --include-staged option is somehting to be wary of...
-	cmd_foreach $foreach_flags config_sync_iter
+	GIT_QUIET=1 cmd_foreach $foreach_flags config_sync_iter
 }
 
 config_sync_iter() {
