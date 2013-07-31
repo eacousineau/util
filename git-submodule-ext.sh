@@ -40,6 +40,8 @@ be wary of escaping!
     -p, --post-order           Do post-order traversal (default is pre-order, top-level first)
     -i, --include-staged       Include staged-only submodules (TODO Make --cached only)
     --no-cd                    Do not cd to submodules directory (TODO Remove)
+    --cd-orig                  cd to original repo (if git-new-workdir was used). \
+For now is not applied recursively.
 
 $dashless set-url [foreach-options] [repo | config | base]
     url synchronization utilities (TODO Add [modules] to the end)
@@ -226,6 +228,7 @@ cmd_foreach()
 	# Change this to '--cached'
 	include_staged=
 	no_cd=
+	cd_orig=
 
 	while test $# -ne 0
 	do
@@ -264,6 +267,9 @@ cmd_foreach()
 		-i|--include-staged)
 			# Add staged-only flag?
 			include_staged=1
+			;;
+		--cd-orig)
+			cd_orig=1
 			;;
 		-*)
 			usage
@@ -328,7 +334,15 @@ cmd_foreach()
 			then
 				
 				is_worktree=1
-				test -z "$no_cd" && cd "$sm_path"
+				if test -z "$no_cd"
+				then
+					cd "$sm_path"
+					if test -n "$cd_orig"
+					then
+						orig_path="$(git-new-workdir --show-orig . 2> /dev/null)"
+						test -n "$orig_path" && cd "$orig_path"
+					fi
+				fi
 				# Contain so things don't spill to post_order
 				if test -z "$post_order"
 				then
