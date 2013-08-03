@@ -39,6 +39,7 @@ be wary of escaping!
     -r, --recursive            Iterate recursively
     -p, --post-order           Do post-order traversal (default is pre-order, top-level first)
     -i, --include-staged       Include staged-only submodules (TODO Make --cached only)
+    -k, --keep-going           Keep going if a submodule encounters an error (robust option)
     --no-cd                    Do not cd to submodules directory (TODO Remove)
     --cd-orig                  cd to original repo (if git-new-workdir was used). \
 For now is not applied recursively.
@@ -229,6 +230,7 @@ cmd_foreach()
 	include_staged=
 	no_cd=
 	cd_orig=
+	keep_going=
 
 	while test $# -ne 0
 	do
@@ -268,6 +270,10 @@ cmd_foreach()
 			# Add staged-only flag?
 			include_staged=1
 			;;
+		-k|--keep-going)
+			keep_going=1
+			recurse_flags="$recurse_flags $1"
+			;;
 		--cd-orig)
 			cd_orig=1
 			;;
@@ -296,12 +302,22 @@ cmd_foreach()
 
 	is_worktree=1
 
+	maybe_die()
+	{
+		if test -z "$keep_going"
+		then
+			die Stopping "$@"
+		else
+			echo Error "$@" Continuing 1>&2
+		fi
+	}
+
 	super_eval()
 	{
 		verb=$1
 		shift
 		say "$(eval_gettext "$verb supermodule '$name'")"
-		( eval "$@" ) || die "Stopping at supermodule; script returned non-zero status."
+		( eval "$@" ) || maybe_die "at supermodule; script returned non-zero status."
 	}
 
 	if test -n "$include_super" -a -z "$post_order"
@@ -319,7 +335,7 @@ cmd_foreach()
 		enter_msg="$(eval_gettext "Entering '\$prefix\$sm_path'")"
 		staged_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
 		exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
-		die_msg="$(eval_gettext "Stopping at '\$sm_path'; script returned non-zero status.")"
+		die_msg="$(eval_gettext "at '\$sm_path'; script returned non-zero status.")"
 		
 		(
 			is_top=
@@ -370,7 +386,7 @@ cmd_foreach()
 				is_top=
 				( eval "$@" ) || exit 1
 			fi
-		) <&3 3<&- || die "$die_msg"
+		) <&3 3<&- || maybe_die "$die_msg"
 	done || exit 1
 
 	if test -n "$include_super" -a -n "$post_order"
