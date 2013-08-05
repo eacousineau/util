@@ -62,7 +62,7 @@ To recursively clone another person's supermodule
 
 	git clone git://bobby.local/repo/.git
 	cd repo
-	git sfe -t -r 'git sube set-url base && yes | git sube womp -T --no-sync --reset'
+	git sfe -t -r 'git sube set-url super && yes | git sube womp -T --no-sync --reset'
 
 Afterwards, restore original urls, then add the direct clone url
 

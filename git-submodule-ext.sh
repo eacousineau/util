@@ -25,7 +25,7 @@ USAGE="foreach  <command>
 	or: $dashless config-sync [FOREACH_FLAGS]"
 OPTIONS_SPEC=
 
-USAGE='[list|branch|set-url|womp|config-sync]'
+USAGE='[list | branch | set-url | womp | config-sync]'
 LONG_USAGE="\
 $dashless list [-c | --constrain]
     list staged submodules in current repo.
@@ -34,7 +34,7 @@ $dashless foreach [options] command
     iterate through submodules, using eval subshell (bash) in current process
 variables: \$name, \$path, \$sm_ptah, \$toplevel, \$is_top.
 be wary of escaping!
-    -c, --constrain            Use git-config scm.focusGroup to constrain iteration
+    -c, --constrain            Use git-config 'scm.focusGroup' to constrain iteration
     -t, --top-level            Include top-level
     -r, --recursive            Iterate recursively
     -p, --post-order           Do post-order traversal (default is pre-order, top-level first)
@@ -42,27 +42,27 @@ be wary of escaping!
     -k, --keep-going           Keep going if a submodule encounters an error (robust option)
     --no-cd                    Do not cd to submodules directory (TODO Remove)
     --cd-orig                  cd to original repo (if git-new-workdir was used). \
-For now is not applied recursively.
+Not applied recursively. Can also specify git-config 'scm.cdOrig'
 
-$dashless set-url [foreach-options] [repo | config | base]
+$dashless set-url [options] [foreach-options] [repo | config | super]
     url synchronization utilities (TODO Add [modules] to the end)
-    --remote                   Use specified remote to retrieve url. Otherwise use default.
+    --remote REMOTE            Use specified remote to retrieve url. Otherwise use default.
     subcommands
-      repo                     Set repo's url from GIT_CONFIG
-        --use-gitmodules       Set from .gitmodules instead, copying url to GIT_CONFIG
+      repo                     Read GIT_CONFIG => Set repo's url
+        -g, --use-gitmodules   Read .gitmodules instead => Set repo's url and GIT_CONFIG
         -S, --no-sync          With --use-gitmodules, do not copy to GIT_CONFIG
-      config                   Set config's url, reading repo's url
-        --set-gitmodules       Set url in .gitmodules as well
-      base                     Set url according to base url (TODO Deprecate and remove?)
+      config                   Read repo's url => Set config's url
+        -g, --set-gitmodules   Set url in .gitmodules as well
+      super                    Read super url => Set submodule url to \$super/modules/\$path (TODO Deprecate and remove?)
 
-$dashless womp [foreach-options] [options] [<commit>]
+$dashless womp [options] [foreach-options] [<commit>]
     general purpose updating utility. By default, this will update the supermodules, \
 synchronize urls, checkout branches specified in .gitmodules, and attempt to merge \
 changes from \$remote's branch of same name.
-    --remote                   Use specified remote, default if unspecified
+    --remote REMOTE            Use specified remote, default if unspecified
     -f, --force                Use force checkout
     --oompf                    Delete worktree of supermodule and reinitialize submodules. \
-Preserves local history if your gitdir's are in $toplevel/.git/modules, destructive \
+Preserves local history if your gitdir's are in \$toplevel/.git/modules, destructive \
 otherwise.
     --reset                    Instead of --force / --oompf, will update submodule to staged \
 SHA1, and reset branch name (if specified) to that SHA.
@@ -72,7 +72,7 @@ SHA1, and reset branch name (if specified) to that SHA.
     -N, --no-fetch             Do not fetch from \$remote
     -n, --dry-run              (Semi-supported) Don't do anythnig, just print
 
-$dashless branch [write | checkout]
+$dashless branch [foreach-options] [write | checkout]
     useful branch operations
     subcommands
       write                    Record submodules branches to .gitmodules. If detached head, will \
@@ -229,7 +229,7 @@ cmd_foreach()
 	# Change this to '--cached'
 	include_staged=
 	no_cd=
-	cd_orig=
+	cd_orig=$(git config scm.cdOrig || :)
 	keep_going=
 
 	while test $# -ne 0
@@ -704,8 +704,12 @@ cmd_set_url()
 	test $# -eq 0 && usage
 
 	case $1 in
-		repo | config | base)
+		repo | config | super)
 			command=$1
+			shift
+			;;
+		base)
+			command=super
 			shift
 			;;
 		*)
@@ -755,11 +759,11 @@ set_url_config_iter() {
 	fi
 }
 
-set_url_base_setup() {
+set_url_super_setup() {
 	# Same options
 	set_url_config_setup
 }
-set_url_base_iter() {
+set_url_super_iter() {
 	set_url_iter
 	# Redundant :/
 	topurl=$(git config remote."$remote".url)
@@ -822,7 +826,7 @@ set_module_url_if_worktree() {
 	if test -n "$is_worktree"
 	then
 		cd "$sm_path"
-		if git remote show "$remote" 1> /dev/null 2>&1
+		if git config remote."$remote".url > /dev/null
 		then
 			say "Set remote '$remote' url to '$sm_url' (from $noun)"
 			git remote set-url "$remote" "$sm_url"
