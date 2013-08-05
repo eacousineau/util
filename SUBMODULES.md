@@ -40,7 +40,7 @@ And extensions:
 *	`git submodule-ext` or `git sube`
 	*	`foreach` - Modified to allow more flexible iteration: post-order, with top-level module, and constrained. Constrained iteration is done by using a list specified in `scm.focusGroup` in `$GIT_DIR/config`
 	*	`branch write`, `branch checkout` - Record and checkout the branch your submodules are on, recorded in `.gitmodules`. You can specify `foreach` options, including `--constrain`. If submodule does not have a branch, `branch checkout` will do nothing.
-	*	`womp` - Makes sure that your submodules are correctly checked out and up to date with remote repos, including checking out the branches specified in `.gitmodules`. **NOTE**: This is intended for development. If you write all of your submodule's branches, you may update some of your submodules further than you want.
+	*	`refresh` - Makes sure that your submodules are correctly checked out and up to date with remote repos, including checking out the branches specified in `.gitmodules`. **NOTE**: This is intended for development. If you write all of your submodule's branches, you may update some of your submodules further than you want.
 
 # Practices
 
@@ -62,7 +62,7 @@ To recursively clone another person's supermodule
 
 	git clone git://bobby.local/repo/.git
 	cd repo
-	git sfe -t -r 'git sube set-url super && yes | git sube womp -T --no-sync --reset'
+	git sfe -t -r 'git sube set-url super && yes | git sube refresh -T --no-sync --reset'
 
 Afterwards, restore original urls, then add the direct clone url
 

@@ -8,12 +8,12 @@
 # TODO I think subshells are preventing things from properly dying on error. Need to fix
 # Yep, they're definitely not dying...
 
-# TODO git `sube womp --reset` was not resetting to the correct sha. Need a submodule-level 'update' command, or a 'git sube rev-parse' command.
+# TODO git `sube refresh --reset` was not resetting to the correct sha. Need a submodule-level 'update' command, or a 'git sube rev-parse' command.
 
 # NOTE: Need to research `update --remote` to look into more functionality
 # Follow up - I think the update --remote does what this intended to do. Need to delete this function if it surely does so.
 # Use git_submodule_config to ease use of 'branch'
-# Transition from '--list LIST' to 'command opts -- LIST' - even in the case of foreach, womp, etc (will be better than current system of trying to pass var)
+# Transition from '--list LIST' to 'command opts -- LIST' - even in the case of foreach, refresh, etc (will be better than current system of trying to pass var)
 
 shopt -s xpg_echo
 
@@ -21,11 +21,11 @@ dashless=$(basename "$0" | sed -e 's/-/ /')
 USAGE="foreach  <command>
 	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
 	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
-	or: $dashless womp [FOREACH_FLAGS] [--remote REMOTE] [--force] [--oompf] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>
+	or: $dashless refresh [FOREACH_FLAGS] [--remote REMOTE] [--force] [--clear] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>
 	or: $dashless config-sync [FOREACH_FLAGS]"
 OPTIONS_SPEC=
 
-USAGE='[list | branch | set-url | womp | config-sync]'
+USAGE='[list | branch | set-url | refresh | config-sync]'
 LONG_USAGE="\
 $dashless list [-c | --constrain]
     list staged submodules in current repo.
@@ -55,16 +55,16 @@ $dashless set-url [options] [foreach-options] [repo | config | super]
         -g, --set-gitmodules   Set url in .gitmodules as well
       super                    Read super url => Set submodule url to \$super/modules/\$path (TODO Deprecate and remove?)
 
-$dashless womp [options] [foreach-options] [<commit>]
+$dashless refresh [options] [foreach-options] [<commit>]
     general purpose updating utility. By default, this will update the supermodules, \
 synchronize urls, checkout branches specified in .gitmodules, and attempt to merge \
 changes from \$remote's branch of same name.
     --remote REMOTE            Use specified remote, default if unspecified
     -f, --force                Use force checkout
-    --oompf                    Delete worktree of supermodule and reinitialize submodules. \
+    --clear                    Delete all unhidden files of worktree of supermodule and reinitialize submodules. \
 Preserves local history if your gitdir's are in \$toplevel/.git/modules, destructive \
 otherwise.
-    --reset                    Instead of --force / --oompf, will update submodule to staged \
+    --reset                    Instead of --force / --clear, will update submodule to staged \
 SHA1, and reset branch name (if specified) to that SHA.
     --no-sync                  Do not synchronize urls
     --no-track                 Do not set branches to track
@@ -470,11 +470,11 @@ cmd_branch()
 	cmd_foreach $foreach_flags branch_iter_${command}
 }
 
-cmd_womp()
+cmd_refresh()
 {
 	# How to get current remote?
 	remote=origin track=1 sync=1
-	force= oompf= no_fetch= recursive= force= foreach_list= constrain=
+	force= clear= no_fetch= recursive= force= foreach_list= constrain=
 	reset=
 	branch=
 	foreach_flags=
@@ -491,9 +491,9 @@ cmd_womp()
 			-f|--force)
 				force=1
 				;;
-			--oompf)
+			--clear|--oompf)
 				force=1
-				oompf=1
+				clear=1
 				;;
 			--reset)
 				reset=1
@@ -543,7 +543,7 @@ cmd_womp()
 
 	# Can do something like `cd $toplevel; git submodule update $update_flags -- $path`
 
-	womp_iter() {
+	refresh_iter() {
 		if test -z "$no_fetch"
 		then
 			say "Fetching $prefix"
@@ -587,12 +587,12 @@ cmd_womp()
 
 		if test "$branch" = "HEAD"
 		then
-			echo "$name is in a detached head state. Can't womp, skipping"
+			echo "$name is in a detached head state. Can't refresh, skipping"
 		elif test -z "$is_top" -o -z "$no_top_level_merge"
 		then
 			if test -n "$force"
 			then
-				if test -n "$oompf" -a -n "$is_top"
+				if test -n "$clear" -a -n "$is_top"
 				then
 					# This does not need to applied recursively
 					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
@@ -629,14 +629,14 @@ cmd_womp()
 	ask=
 	if test -n "$force"
 	then
-		echo "WARNING: A force womp will do a HARD RESET on all of your branches to your remote's branch."
-		if test -n "$oompf"
+		echo "WARNING: A force refresh will do a HARD RESET on all of your branches to your remote's branch."
+		if test -n "$clear"
 		then
-			echo "MORE WARNING: An oompf womp will remove all files before the reset."
+			echo "MORE WARNING: An clear refresh will remove all files before the reset."
 			if test -n "$foreach_list"
 			then
-				echo "EVEN MORE WARNING: Constraining your submodule list with an oompf womp will leave certain modules not checked out / initialized."
-				echo "It can also leave it hard to womp back your old modules without doing an oompf womp"
+				echo "EVEN MORE WARNING: Constraining your submodule list with an clear refresh will leave certain modules not checked out / initialized."
+				echo "It can also leave it hard to refresh back your old modules without doing an clear refresh"
 			fi
 		fi
 		ask=1
@@ -644,14 +644,14 @@ cmd_womp()
 	if test -n "$reset"
 	then
 		test -z "$force" || die "Cannot --reset and --force"
-		echo "CAUTION: A reset womp will RESET the branch name specified in .gitmodules to the commits pointed to by the supermodule."
+		echo "CAUTION: A reset refresh will RESET the branch name specified in .gitmodules to the commits pointed to by the supermodule."
 		echo "This will CHANGE what your local branch points to."
 		ask=1
 	fi
 
 	if test -n "$ask"
 	then
-		echo "Are you sure you want to continue? [Y/n]"
+		echo "Are you sure you want to continue? [y/N]"
 		read choice
 		case "$choice" in
 			Y|y)
@@ -663,7 +663,7 @@ cmd_womp()
 	fi
 
 	# Now do it, including top-level
-	cmd_foreach --top-level $foreach_flags womp_iter
+	cmd_foreach --top-level $foreach_flags refresh_iter
 }
 
 # TODO Add below functionality, for syncing with other computers via git-daemon
@@ -901,11 +901,14 @@ command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | womp | branch | list)
+	foreach | refresh | branch | list)
 		command=$1
 		;;
 	set-url)
 		command="set_url"
+		;;
+	womp)
+		command="refresh" # Compatibility
 		;;
 	config-sync)
 		command="config_sync"
