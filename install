@@ -7,7 +7,7 @@ set -e -u
 bin="$(basename $0)"
 usage()
 {
-	echo "$bin [--no-clean] [--link] [-u | --uninstall] DEST"
+	echo "$bin [--no-clean] [--link] [-u | --uninstall] <DEST>"
 	exit $1
 }
 
@@ -39,10 +39,11 @@ done
 if test $# -eq 0
 then
 	echo "Need to supply directory (absolute path) to put this stuff in."
-	usage 1
+	dir=/usr/local/bin
+else
+	dir=$1
+	shift
 fi
-dir=$1
-shift
 
 path=$(dirname $BASH_SOURCE)
 cd $path
