@@ -60,7 +60,7 @@ Right now, Ubuntu 12.04 uses `v1.7.9.5`. There is more Git submodule functionali
 
 To recursively clone another person's supermodule
 
-	git clone git://bobby.local/repo/.git
+	git clone git://bobby.local/repo
 	cd repo
 	git sfe -t -r 'git sube set-url super && yes | git sube refresh -T --no-sync --reset'
 
