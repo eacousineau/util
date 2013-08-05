@@ -53,7 +53,7 @@ $dashless set-url [options] [foreach-options] [repo | config | super]
         -S, --no-sync          With --use-gitmodules, do not copy to GIT_CONFIG
       config                   Read repo's url => Set config's url
         -g, --set-gitmodules   Set url in .gitmodules as well
-      super                    Read super url => Set submodule url to \$super/modules/\$path (TODO Deprecate and remove?)
+      super                    Read super url => Set submodule url to \$super/\$path (TODO Deprecate and remove?)
 
 $dashless refresh [options] [foreach-options] [<commit>]
     general purpose updating utility. By default, this will update the supermodules, \
@@ -767,7 +767,7 @@ set_url_super_iter() {
 	set_url_iter
 	# Redundant :/
 	topurl=$(git config remote."$remote".url)
-	sm_url=$topurl/modules/$path
+	sm_url=$topurl/$path
 	
 	set_module_config_url
 	noun="toplevel"
