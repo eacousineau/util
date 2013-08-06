@@ -199,7 +199,7 @@ cmd_list()
 	foreach_list=
 	if test -n "$constrain"
 	then
-		foreach_list=$(git config scm.focusGroup)
+		foreach_list=$(git config scm.focusGroup || :)
 	fi
 
 	module_list $foreach_list |
