@@ -30,7 +30,7 @@ LONG_USAGE='Checkout a branch / commit of an existing Git repository to a new lo
 linking to the original object database, refs, config (if not a supermodule), etc., so
 that the git database is the same between the original Git repository and the new
 working directory.'
-
+NONGIT_OK=1
 . git-sh-setup
 
 always_link_config=
