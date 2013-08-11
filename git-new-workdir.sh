@@ -207,11 +207,15 @@ branch=$3
 
 # don't recreate a workdir over an existing repository
 orig_workdir_abs="$(cd $orig_workdir && pwd)"
-if test -e "$new_workdir"
+if test "$new_workdir" != "${new_workdir%/}"
 then
-	new_workdir="$new_workdir/$(basename $orig_workdir_abs)"
-	# die "destination directory '$new_workdir' already exists."
+	# Trailing slash, try to add
+	basedir="$new_workdir"
+	new_workdir="$new_workdir$(basename $orig_workdir_abs)"
+	test -e "$basedir" || die "Intermediate directory '$basedir' does not exist, cannot create '$new_workdir'. (The trailing slash means that the basename of orig workdir will be appended)".
 fi
+
+test -e "$new_workdir" && die "New workdir '$new_workdir' already exists"
 
 get_new_gitdir
 
