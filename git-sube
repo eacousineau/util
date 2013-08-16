@@ -63,11 +63,20 @@ _git_submodule-ext ()
 		set-url,-*,config)
 			__gitcomp "-g $foreach_posix_opts"
 			;;
+		set-url,*,config)
+			COMPREPLY=()
+			;;
 		set-url,--*,repo)
 			__gitcomp "--no-sync --use-gitmodules"
 			;;
 		set-url,-*,repo)
 			__gitcomp "-g -S"
+			;;
+		set-url,*,repo)
+			COMPREPLY=()
+			;;
+		set-url,*,super)
+			COMPREPLY=()
 			;;
 		set-url,--*,*)
 			__gitcomp "$set_url_opts $foreach_opts"
