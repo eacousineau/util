@@ -1,0 +1,100 @@
+#!bash
+# Submodule extensions for git - E. A. Cousineau (eacousineau@gmail.com)
+# Bash completion functions - R. W. Sinnet (ryan@rwsinnet.com)
+
+_git_submodule-ext ()
+{
+	local subcommands="branch config-sync foreach list refresh set-url womp"
+	local subcommand="$(__git_find_on_cmdline "$subcommands")"
+	if [ -z "$subcommand" ]; then
+		case "$cur" in
+		-*)
+			__gitcomp "-h"
+			;;
+		*)
+			__gitcomp "$subcommands"
+			;;
+		esac
+	else
+		local foreach_opts="
+			--constrain --top-level --recursive --post-order
+			--include-staged --keep-going --no-cd --cd-orig
+			"
+		local foreach_posix_opts="-c -i -k -p -r -t"
+		local set_url_opts="--remote"
+		local set_url_subcommands="config repo super"
+		local refresh_opts="
+			--clear --dry-run --force --no-fetch --no-sync
+			--no-top-level-merge --no-track --remote --reset
+			"
+		local refresh_posix_opts="-f -N -n -T"
+
+		case "$subcommand,$cur,$prev" in
+		branch,*,checkout)
+			_git_checkout
+			;;
+		branch,*,write)
+			COMPREPLY=()
+			;;
+		branch,--*,*)
+			__gitcomp "$foreach_opts"
+			;;
+		branch,-*,*)
+			__gitcomp "$foreach_posix_opts"
+			;;
+		branch,*,*)
+			__gitcomp "checkout write"
+			;;
+		foreach,--*,*)
+			__gitcomp "$foreach_opts"
+			;;
+		foreach,-*,*)
+			__gitcomp "$foreach_posix_opts"
+			;;
+		list,--*,*)
+			__gitcomp "--constrain"
+			;;
+		list,-*,*)
+			__gitcomp "-c"
+			;;
+		set-url,--*,config)
+			__gitcomp "--set-gitmodules $foreach_opts"
+			;;
+		set-url,-*,config)
+			__gitcomp "-g $foreach_posix_opts"
+			;;
+		set-url,--*,repo)
+			__gitcomp "--no-sync --use-gitmodules"
+			;;
+		set-url,-*,repo)
+			__gitcomp "-g -S"
+			;;
+		set-url,--*,*)
+			__gitcomp "$set_url_opts $foreach_opts"
+			;;
+		set-url,-*,*)
+			__gitcomp "$foreach_posix_opts"
+			;;
+		set-url,*,*)
+			__gitcomp "$set_url_subcommands"
+			;;
+		refresh,--*,*)
+			__gitcomp "$refresh_opts $foreach_opts"
+			;;
+		refresh,-*,*)
+			__gitcomp "$refresh_posix_opts $foreach_posix_opts"
+			;;
+		refresh,*,*)
+			__gitcomp_nl "$(__git_refs '' $track)"
+			;;
+		*)
+			COMPREPLY=()
+			;;
+		esac
+		fi
+}
+
+_git_sube ()
+{
+	_git_submodule-ext
+}

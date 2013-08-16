@@ -82,3 +82,25 @@ for script in $scripts
 do
 	linkerade $script
 done
+
+# Install bash completion
+fname=git-sube
+src=~+/$fname
+dest=/etc/bash_completion.d/$fname
+if test -h "$dest" -a \( -n "$uninstall" -o -n "$clean" \)
+then
+    echo -e "Removing $dest"
+    rm $dest
+fi
+if test -z "$uninstall"
+then
+    if test -z "$link"
+    then
+	echo "Copying $src -> $dest"
+	cp $src $dest
+    else
+	echo "Linking $src -> $dest"
+	ln -s $src $dest
+    fi
+    chmod 644 $src $dest
+fi
