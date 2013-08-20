@@ -55,10 +55,11 @@ $dashless set-url [options] [foreach-options] [repo | config | super]
         -g, --set-gitmodules   Set url in .gitmodules as well
       super                    Read super url => Set submodule url to \$super/\$path (TODO Deprecate and remove?)
 
-$dashless refresh [options] [foreach-options] [<commit>]
+$dashless refresh [options] [foreach-options]
     general purpose updating utility. By default, this will update the supermodules, \
 synchronize urls, checkout branches specified in .gitmodules, and attempt to merge \
 changes from \$remote's branch of same name.
+    -b, --branch BRANCH        Use specificed branch (or commit).
     --remote REMOTE            Use specified remote, default if unspecified
     -f, --force                Use force checkout
     --clear                    Delete all unhidden files of worktree of supermodule and reinitialize submodules. \
@@ -523,6 +524,10 @@ cmd_refresh()
 			-h|--help|--*)
 				usage
 				;;
+			-b|--branch)
+				shift
+				branch=$1
+				;;
 			*)
 				break
 				;;
@@ -530,10 +535,7 @@ cmd_refresh()
 		shift
 	done
 
-	if test $# -eq 1
-	then
-		branch=$1
-	elif test $# -gt 1
+	if test $# -gt 0
 	then
 		die "Invalid number of arguments specified"
 	fi
