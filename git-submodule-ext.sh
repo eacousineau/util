@@ -89,6 +89,8 @@ See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips 
 
 OPTIONS_SPEC=
 
+export PATH=$PATH:$(git --exec-path) # Put git libexec on path
+
 . git-sh-setup
 . git-sh-i18n
 . git-parse-remote

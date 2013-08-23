@@ -31,6 +31,9 @@ linking to the original object database, refs, config (if not a supermodule), et
 that the git database is the same between the original Git repository and the new
 working directory.'
 NONGIT_OK=1
+
+export PATH=$PATH:$(git --exec-path) # Put git libexec on path
+
 . git-sh-setup
 
 always_link_config=
