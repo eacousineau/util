@@ -38,7 +38,7 @@ be wary of escaping!
     -t, --top-level            Include top-level
     -r, --recursive            Iterate recursively
     -p, --post-order           Do post-order traversal (default is pre-order, top-level first)
-    -i, --include-staged       Include staged-only submodules (TODO Make --cached only)
+    --cached                   Traverse cached / staged submodules (implies --no-cd)
     -k, --keep-going           Keep going if a submodule encounters an error (robust option)
     --no-cd                    Do not cd to submodules directory (TODO Remove)
     --cd-orig                  cd to original repo (if git-new-workdir was used). \
@@ -229,8 +229,7 @@ cmd_foreach()
 	constrain=
 	recurse_flags=--not-top
 	is_top=1
-	# Change this to '--cached'
-	include_staged=
+	cached=
 	no_cd=
 	cd_orig=$(git config scm.cdOrig || :)
 	keep_going=
@@ -269,9 +268,8 @@ cmd_foreach()
 			# Less hacky way?
 			is_top=
 			;;
-		-i|--include-staged)
-			# Add staged-only flag?
-			include_staged=1
+		--cached)
+			cached=1
 			;;
 		-k|--keep-going)
 			keep_going=1
@@ -336,7 +334,7 @@ cmd_foreach()
 		die_if_unmatched "$mode"
 
 		enter_msg="$(eval_gettext "Entering '\$prefix\$sm_path'")"
-		staged_msg="$(eval_gettext "Entering staged '\$prefix\$sm_path'")"
+		cached_msg="$(eval_gettext "Entering cached '\$prefix\$sm_path'")"
 		exit_msg="$(eval_gettext "Leaving '\$prefix\$sm_path'")"
 		die_msg="$(eval_gettext "at '\$sm_path'; script returned non-zero status.")"
 		
@@ -349,9 +347,14 @@ cmd_foreach()
 			path=$sm_path
 
 			foreach_list=
-			if test -e "$sm_path"/.git
+			if test -n "$cached"
 			then
-				
+				say "$cached_msg"
+				is_worktree=
+				is_top=
+				( eval "$@" ) || exit 1
+			elif test -e "$sm_path"/.git
+			then
 				is_worktree=1
 				if test -z "$no_cd"
 				then
@@ -382,12 +385,6 @@ cmd_foreach()
 					say "$exit_msg"
 					( eval "$@" ) || exit 1
 				fi
-			elif test -n "$include_staged"
-			then
-				say "$staged_msg"
-				is_worktree=
-				is_top=
-				( eval "$@" ) || exit 1
 			fi
 		) <&3 3<&- || maybe_die "$die_msg"
 	done || exit 1
