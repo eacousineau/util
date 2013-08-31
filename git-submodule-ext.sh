@@ -18,18 +18,16 @@
 shopt -s xpg_echo
 
 dashless=$(basename "$0" | sed -e 's/-/ /')
-USAGE="foreach  <command>
-	or: $dashless branch [FOREACH_FLAGS] [write | checkout]
-	or: $dashless set-url [FOREACH_FLAGS] [--remote REMOTE] [repo | config | base]
-	or: $dashless refresh [FOREACH_FLAGS] [--remote REMOTE] [--force] [--clear] [--no-sync] [--no-track] [-N | --no-fetch] [-T | --no-top-level-merge] <branch>
-	or: $dashless config-sync [FOREACH_FLAGS]"
 OPTIONS_SPEC=
 
 USAGE='[list | branch | set-url | refresh | config-sync]'
-LONG_USAGE="\
+
+USAGE_list="\
 $dashless list [-c | --constrain]
     list staged submodules in current repo.
+"
 
+USAGE_foreach="\
 $dashless foreach [options] command
     iterate through submodules, using eval subshell (bash) in current process
 variables: \$name, \$path, \$sm_ptah, \$toplevel, \$is_top.
@@ -43,7 +41,9 @@ be wary of escaping!
     --no-cd                    Do not cd to submodules directory (TODO Remove)
     --cd-orig                  cd to original repo (if git-new-workdir was used). \
 Not applied recursively. Can also specify git-config 'scm.cdOrig'
+"
 
+USAGE_set_url="\
 $dashless set-url [options] [foreach-options] [repo | config | super]
     url synchronization utilities (TODO Add [modules] to the end)
     --remote REMOTE            Use specified remote to retrieve url. Otherwise use default.
@@ -54,7 +54,9 @@ $dashless set-url [options] [foreach-options] [repo | config | super]
       config                   Read repo's url => Set config's url
         -g, --set-gitmodules   Set url in .gitmodules as well
       super                    Read super url => Set submodule url to \$super/\$path (TODO Deprecate and remove?)
+"
 
+USAGE_refresh="\
 $dashless refresh [options] [foreach-options]
     general purpose updating utility. By default, this will update the supermodules, \
 synchronize urls, checkout branches specified in .gitmodules, and attempt to merge \
@@ -72,20 +74,25 @@ SHA1, and reset branch name (if specified) to that SHA.
     -T, --no-top-level-merge   Do not merge supermodule's remote branch
     -N, --no-fetch             Do not fetch from \$remote
     -n, --dry-run              (Semi-supported) Don't do anythnig, just print
+"
 
+USAGE_branch="\
 $dashless branch [foreach-options] [write | checkout]
     useful branch operations
     subcommands
-      write                    Record submodules branches to .gitmodules. If detached head, will \
+      write         Record submodules branches to .gitmodules. If detached head, will \
 delete branch config entry.
       checkout [checkout-options]
-                               Checkout branch (if) specified in .gitmodules 
+                    Checkout branch (if) specified in .gitmodules 
+"
 
+USAGE_config_sync="\
 $dashless config-sync
     will go through and add worktree submodules to .gitmodules, writing each one's name, path, \
 and url. Useful for making sure submodules added via direct clone or git-new-workdir are properly mapped.
+"
 
-See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
+LONG_USAGE="See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
 
 OPTIONS_SPEC=
 
@@ -278,6 +285,10 @@ cmd_foreach()
 		--cd-orig)
 			cd_orig=1
 			;;
+		-h|--help)
+			echo "$USAGE_foreach"
+			exit 0
+			;;
 		-*)
 			usage
 			;;
@@ -452,6 +463,10 @@ cmd_branch()
 			-c|-r)
 				foreach_flags="$foreach_flags $1"
 				;;
+			-h|--help)
+				echo "$USAGE_branch"
+				exit 0
+				;;
 			*)
 				break
 				;;
@@ -520,12 +535,16 @@ cmd_refresh()
 			-n|--dry-run)
 				dry_run=1
 				;;
-			-h|--help|--*)
-				usage
+			-h|--help)
+				echo "$USAGE_refresh"
+				exit 0
 				;;
 			-b|--branch)
 				shift
 				branch=$1
+				;;
+			--*)
+				usage
 				;;
 			*)
 				break
@@ -692,7 +711,11 @@ cmd_set_url()
 				remote=$2
 				shift
 				;;
-			-h|--help|--*)
+			-h|--help)
+				echo "$USAGE_set_url"
+				exit 0
+				;;
+			--*)
 				usage
 				;;
 			*)
@@ -857,10 +880,6 @@ cmd_config_sync() {
 	remote=
 	foreach_flags=""
 
-	echo "Updating entires in .gitmodules..."
-	# TODO Will have to iterate using custom iteration. This will not work yet (since submodule has no mapping)
-	#die "Not yet implemented"
-
 	while test $# -ne 0
 	do
 		case $1 in
@@ -871,7 +890,11 @@ cmd_config_sync() {
 				remote=$2
 				shift
 				;;
-			-h|--help|--*)
+			-h|--help)
+				echo "$USAGE_config_sync"
+				exit 0
+				;;
+			--*)
 				usage
 				;;
 			*)
@@ -880,8 +903,8 @@ cmd_config_sync() {
 		esac
 		shift
 	done
-	
-	# --include-staged option is somehting to be wary of...
+
+	echo "Updating entires in .gitmodules..."
 	GIT_QUIET=1 cmd_foreach $foreach_flags config_sync_iter
 }
 
