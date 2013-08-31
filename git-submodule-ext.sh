@@ -358,15 +358,19 @@ cmd_foreach()
 			path=$sm_path
 
 			foreach_list=
+			is_worktree=
+			if test -e "$sm_path"/.git
+			then
+				is_worktree=1
+			fi
+
 			if test -n "$cached"
 			then
 				say "$cached_msg"
-				is_worktree=
 				is_top=
 				( eval "$@" ) || exit 1
-			elif test -e "$sm_path"/.git
+			elif test -n "$is_worktree"
 			then
-				is_worktree=1
 				if test -z "$no_cd"
 				then
 					cd "$sm_path"
@@ -695,7 +699,7 @@ cmd_refresh()
 cmd_set_url()
 {
 	remote=
-	foreach_flags="--include-staged --no-cd"
+	foreach_flags="--cached"
 
 	while test $# -ne 0
 	do
