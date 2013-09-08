@@ -24,6 +24,7 @@ always-link-config   link 'config' file, even if using on a submodule.\
  Otherwise, a copy of the config is made.
 c,constrain          use git-config scm.focusGroup (submodule-ext) to checkout selected submodules
 ignore-submodules    do not try to checkout submodules
+use-gitdir-modules   link submodules to \$GIT_DIR/modules/\$path, and rely on submodule mechanisms to checkout working copy.
 "
 # How to get this to show up in basic help? It seems to be either option spec or long usage....
 LONG_USAGE='Checkout a branch / commit of an existing Git repository to a new location,
@@ -39,6 +40,7 @@ export PATH=$PATH:$(git --exec-path) # Put git libexec on path
 always_link_config=
 bare=
 ignore_submodules=
+use_gitdir_modules=
 constrain=
 link_head=
 show_orig=
@@ -58,6 +60,8 @@ do
 		bare=1;;
 	--ignore-submodules)
 		ignore_submodules=1;;
+	--use-gitdir-modules)
+		use_gitdir_modules=1;;
 	-c|--constrain)
 		constrain=1;;
 	--link-head)
@@ -231,10 +235,12 @@ then
 		" remove from \"$orig_gitdir/config\" to use $0"
 fi
 
-echo "[ Old -> New ]\n\t$orig_workdir\n\t$new_workdir"
-
 # create the gitdir
 mkdir -p "$new_gitdir" || die "unable to create \"$new_gitdir\"!"
+
+new_workdir_abs="$(cd $new_workdir && pwd)"
+echo "[ Old -> New ]\n\t$orig_workdir_abs\n\t$new_workdir_abs"
+
 
 # create the links to the original repo.  explicitly exclude index, HEAD and
 # logs/HEAD from the list since they are purely related to the current working
@@ -254,7 +260,6 @@ echo "$orig_workdir_abs" > "$new_gitdir/orig_workdir"
 
 copy_config
 
-use_gitdir_modules=
 is_supermodule=
 # Still checkout submodules if bare? Yes, that way we can see the log
 if test -z "$ignore_submodules"
@@ -296,6 +301,7 @@ then
 		modulate $orig_modules $new_modules
 	elif test -e "$orig_workdir/.gitmodules" -a -z "$bare"
 	then
+		is_supermodule=1
 		echo "[ Supermodule ] Applying $bin to submodules for $orig_workdir"
 		# Checkout new working directories
 		list_flags=""
@@ -304,18 +310,10 @@ then
 			list_flags="--constrain"
 		fi
 
-		modules="$(cd $orig_workdir && git submodule-ext list $list_flags)"
-		for module in $modules
-		do
-			orig_module=$orig_workdir/$module
-			new_module=$new_workdir/$module
-			(
-				if cd $orig_module && test -d $(git rev-parse --git-dir)
-				then
-					$bin_path $recurse_flags $orig_module $new_module
-				fi
-			)
-		done
+		(
+			cd $orig_workdir
+			git submodule-ext foreach $list_flags -- "$bin $recurse_flags . $new_workdir_abs/\$path"
+		)
 	fi
 fi
 
@@ -340,6 +338,7 @@ then
 	# Update submodules - TODO Use `git sube` to allow --constrain option to be recursive	?
 	if test -n "$is_supermodule"
 	then
+		echo "Updating / initializing submodules"
 		if test -n "$constrain"
 		then
 			modules=$(git config scm.focusGroup)
