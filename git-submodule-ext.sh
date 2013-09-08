@@ -289,6 +289,9 @@ cmd_foreach()
 			echo "$USAGE_foreach"
 			exit 0
 			;;
+		--)
+			break
+			;;
 		-*)
 			usage
 			;;
