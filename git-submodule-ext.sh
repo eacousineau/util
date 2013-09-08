@@ -104,6 +104,8 @@ export PATH=$PATH:$(git --exec-path) # Put git libexec on path
 . git-sh-setup
 . git-sh-i18n
 . git-parse-remote
+
+# @todo Currently cannot call help on individual commands. Refactor to allow this?
 require_work_tree
 
 # http://stackoverflow.com/questions/171550/find-out-which-remote-branch-a-local-branch-is-tracking

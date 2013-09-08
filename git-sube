@@ -8,10 +8,10 @@ _git_submodule-ext ()
     local subcommand="$(__git_find_on_cmdline "$subcommands")"
     if [ -z "$subcommand" ]; then
 	case "$cur" in
-	    -*)
+    -*)
 		__gitcomp "-h --help"
 		;;
-	    *)
+    *)
 		__gitcomp "$subcommands"
 		;;
 	esac
@@ -31,88 +31,98 @@ _git_submodule-ext ()
 	local all_opts="--help"
 	local all_opts_short="-h"
 
+	local config_sync_opts="--remote --pre-clean --no-branch"
+	local config_sync_posix_opts="-B"
+
 	case "$subcommand,$cur,$prev" in
-	    branch,--*,checkout)
+    branch,--*,checkout)
 		__git_comp "$all_opts"
 		;;
-	    branch,-*,checkout)
+    branch,-*,checkout)
 		__git_comp "$all_opts_short"
 		;;
-	    branch,*,checkout)
+    branch,*,checkout)
 		_git_checkout
 		;;
-	    branch,--*,write)
+    branch,--*,write)
 		__git_comp "$all_opts"
 		;;
-	    branch,-*,write)
+    branch,-*,write)
 		__git_comp "$all_opts_short"
 		;;
-	    branch,*,write)
-		COMPREPLY=()
+    branch,*,write)
+	COMPREPLY=()
 		;;
-	    branch,--*,*)
+    branch,--*,*)
 		__gitcomp "$foreach_opts $all_opts"
 		;;
-	    branch,-*,*)
+    branch,-*,*)
 		__gitcomp "$foreach_posix_opts $all_opts_short"
 		;;
-	    branch,*,*)
+    branch,*,*)
 		__gitcomp "checkout write"
 		;;
-	    foreach,--*,*)
+    foreach,--*,*)
 		__gitcomp "$foreach_opts $all_opts"
 		;;
-	    foreach,-*,*)
+    foreach,-*,*)
 		__gitcomp "$foreach_posix_opts $all_opts_short"
 		;;
-	    list,--*,*)
+    list,--*,*)
 		__gitcomp "--constrain $all_opts"
 		;;
-	    list,-*,*)
+    list,-*,*)
 		__gitcomp "-c $all_opts_short"
 		;;
-	    set-url,--*,config)
+    set-url,--*,config)
 		__gitcomp "--set-gitmodules $foreach_opts $all_opts"
 		;;
-	    set-url,-*,config)
+    set-url,-*,config)
 		__gitcomp "-g $foreach_posix_opts $all_opts_short"
 		;;
-	    set-url,*,config)
-		COMPREPLY=()
+    set-url,*,config)
+	COMPREPLY=()
 		;;
-	    set-url,--*,repo)
+    set-url,--*,repo)
 		__gitcomp "--no-sync --use-gitmodules $all_opts"
 		;;
-	    set-url,-*,repo)
+    set-url,-*,repo)
 		__gitcomp "-g -S $all_opts_short"
 		;;
-	    set-url,*,repo)
-		COMPREPLY=()
+    set-url,*,repo)
+	COMPREPLY=()
 		;;
-	    set-url,*,super)
-		COMPREPLY=()
+    set-url,*,super)
+	COMPREPLY=()
 		;;
-	    set-url,--*,*)
+    set-url,--*,*)
 		__gitcomp "$set_url_opts $foreach_opts $all_opts"
 		;;
-	    set-url,-*,*)
+    set-url,-*,*)
 		__gitcomp "$foreach_posix_opts $all_opts_short"
 		;;
-	    set-url,*,*)
+    set-url,*,*)
 		__gitcomp "$set_url_subcommands"
 		;;
-	    refresh,--*,*)
+    refresh,--*,*)
 		__gitcomp "$refresh_opts $foreach_opts $all_opts"
 		;;
-	    refresh,-*,*)
+    refresh,-*,*)
 		__gitcomp "$refresh_posix_opts $foreach_posix_opts
-			   $all_opts_short"
+		   $all_opts_short"
 		;;
-	    refresh,*,*)
+    refresh,*,*)
 		__gitcomp_nl "$(__git_refs '' $track)"
 		;;
-	    *)
-		COMPREPLY=()
+	config-sync,--*,*)
+		__gitcomp "$config_sync_opts $foreach_opts $all_opts"
+		;;
+	config-sync,-*,*)
+		__gitcomp "$config_sync_posix_opts $foreach_posix_opts
+			$all_opts_short"
+		;;
+    *)
+	COMPREPLY=()
 		;;
 	esac
     fi

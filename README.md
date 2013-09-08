@@ -17,6 +17,11 @@ If you wish to develop on them while keeping in your `$PATH`, then do
 	./install --link ~/local/bin
 	./aliases
 
+To set up auto completion to link to your development version, add it to `~/.bash_completion`:
+	
+	#!/bin/bash
+	source /path/to/git-util/git-sube
+
 # Credits
 
 *	Jens Lehmann, Junio Hamano, Heiko Voigt, Phil Hord - Design guidance and suggestions and for modifications to submodule foreach.
