@@ -64,10 +64,10 @@ changes from \$remote's branch of same name.
     -b, --branch BRANCH        Use specificed branch (or commit).
     --remote REMOTE            Use specified remote, default if unspecified
     -f, --force                Use force checkout
-    --clear                    Delete all unhidden files of worktree of supermodule and reinitialize submodules. \
+    --pre-clean                Delete all unhidden files of worktree of supermodule and reinitialize submodules. \
 Preserves local history if your gitdir's are in \$toplevel/.git/modules, destructive \
 otherwise.
-    --reset                    Instead of --force / --clear, will update submodule to staged \
+    --reset                    Instead of --force / --pre_clean, will update submodule to staged \
 SHA1, and reset branch name (if specified) to that SHA.
     --no-sync                  Do not synchronize urls
     --no-track                 Do not set branches to track
@@ -87,9 +87,12 @@ delete branch config entry.
 "
 
 USAGE_config_sync="\
-$dashless config-sync
+$dashless config-sync [options] [foreach-options]
     will go through and add worktree submodules to .gitmodules, writing each one's name, path, \
 and url. Useful for making sure submodules added via direct clone or git-new-workdir are properly mapped.
+    --remote REMOTE    Use specified remote when retrieving URL
+    -B, --no-branch    Do not write branch in .gitmodules file (includes branch by default)
+    --pre-clean        Remove .gitmodules file before writing (to re-sort, update, etc.)
 "
 
 LONG_USAGE="See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
@@ -496,7 +499,7 @@ cmd_refresh()
 {
 	# How to get current remote?
 	remote=origin track=1 sync=1
-	force= clear= no_fetch= recursive= force= foreach_list= constrain=
+	force= pre_clean= no_fetch= recursive= force= foreach_list= constrain=
 	reset=
 	branch=
 	foreach_flags=
@@ -513,9 +516,9 @@ cmd_refresh()
 			-f|--force)
 				force=1
 				;;
-			--clear|--oompf)
+			--pre-clean|--clear|--oompf)
 				force=1
-				clear=1
+				pre_clean=1
 				;;
 			--reset)
 				reset=1
@@ -619,7 +622,7 @@ cmd_refresh()
 		then
 			if test -n "$force"
 			then
-				if test -n "$clear" -a -n "$is_top"
+				if test -n "$pre_clean" -a -n "$is_top"
 				then
 					# This does not need to applied recursively
 					# Add an option to skip ignored files? How? Remove everything except for .git? How to do that?
@@ -657,13 +660,13 @@ cmd_refresh()
 	if test -n "$force"
 	then
 		echo "WARNING: A force refresh will do a HARD RESET on all of your branches to your remote's branch."
-		if test -n "$clear"
+		if test -n "$pre_clean"
 		then
-			echo "MORE WARNING: An clear refresh will remove all files before the reset."
+			echo "MORE WARNING: An pre-clean refresh will remove all files before the reset."
 			if test -n "$foreach_list"
 			then
-				echo "EVEN MORE WARNING: Constraining your submodule list with an clear refresh will leave certain modules not checked out / initialized."
-				echo "It can also leave it hard to refresh back your old modules without doing an clear refresh"
+				echo "EVEN MORE WARNING: Constraining your submodule list with an pre_clean refresh will leave certain modules not checked out / initialized."
+				echo "It can also leave it hard to refresh back your old modules without doing an pre-clean refresh"
 			fi
 		fi
 		ask=1
@@ -885,7 +888,9 @@ set_module_config_url() {
 
 cmd_config_sync() {
 	remote=
-	foreach_flags=""
+	foreach_flags="--cached"
+	write_branch=1
+	pre_clean=
 
 	while test $# -ne 0
 	do
@@ -893,6 +898,10 @@ cmd_config_sync() {
 			-r|--recursive|-c|--constrain)
 				foreach_flags="$foreach_flags $1"
 				;;
+			-B|--no-branch)
+				write_branch=;;
+			--pre-clean)
+				pre_clean=1;;
 			--remote)
 				remote=$2
 				shift
@@ -911,21 +920,39 @@ cmd_config_sync() {
 		shift
 	done
 
+	if test -n "$pre_clean"
+	then
+		echo "Removing .gitmodules"
+		rm -f .gitmodules
+	fi
+
 	echo "Updating entires in .gitmodules..."
 	GIT_QUIET=1 cmd_foreach $foreach_flags config_sync_iter
 }
 
 config_sync_iter() {
-	# Just overwrite everything in .gitmodules
-	test -z "$remote" && remote=$(get_default_remote || :)
-	name=$(basename $PWD)
-	echo "Adding $name"
-	branch=$(git bg)
-	url=$(git config remote.$remote.url)
+	name="$sm_path"
+	if test -d "$sm_path/.git"
+	then
+		cd "$sm_path"
+		# Just overwrite everything in .gitmodules
+		test -z "$remote" && remote=$(get_default_remote || :)
+		echo "Adding $name"
+		url=$(git config remote.$remote.url)
+		branch=$(branch_get)
+	else
+		echo "WARNING: Repository does not exist, just setting url to relative directory"
+		url="./$sm_path"
+		branch=HEAD
+	fi
 	cd $toplevel
 	cmd="git config -f .gitmodules submodule.$name"
 	${cmd}.path $name
 	${cmd}.url $url
+	if test -n "$write_branch" -a $branch != HEAD
+	then
+		${cmd}.branch $branch
+	fi
 }
 
 command=
