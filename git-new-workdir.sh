@@ -46,11 +46,14 @@ update_config=
 update_head=
 no_checkout=
 
+recurse_flags=
+
 while test $# -gt 0
 do
 	case "$1" in
 	--always-link-config)
-		always_link_config=1;;
+		always_link_config=1
+		recurse_flags="$recurse_flags --always-link-config";;
 	--bare)
 		bare=1;;
 	--ignore-submodules)
@@ -124,11 +127,6 @@ copy_config()
 		ln -s "$orig_config" "$new_config"
 	fi
 }
-
-if test -n "$always_link_config"
-then
-	recurse_flags="--always-link-config"
-fi
 
 # TODO Make first argument just 'workdir', and later assign it to orig workdir?
 orig_workdir=$1
@@ -256,41 +254,69 @@ echo "$orig_workdir_abs" > "$new_gitdir/orig_workdir"
 
 copy_config
 
-x=modules
-orig_modules="$orig_gitdir/$x"
-new_modules="$new_gitdir/$x"
+use_gitdir_modules=
 is_supermodule=
 # Still checkout submodules if bare? Yes, that way we can see the log
-if test -d "$orig_modules" -a -z "$ignore_submodules"
+if test -z "$ignore_submodules"
 then
-	is_supermodule=1
-	# TODO Allow for directory structure... Checking if a module is 
-	echo "\t[ Note ] Applying $bin to .git/modules since it's a supermodule"
+	set -e -u
+	x=modules
+	orig_modules="$orig_gitdir/$x"
+	new_modules="$new_gitdir/$x"
+	if test -n "$use_gitdir_modules" -a -d "$orig_modules"
+	then
+		echo "[ Supermodule ] Applying $bin --bare to .git/modules/\*"
+		is_supermodule=1
+		# Checkout bare directories
+		recurse_flags="$recurse_flags --bare"
 
-	modulate()
-	{
-		orig_path=$1
-		new_path=$2
-		modules=$(dir $orig_path)
+		modulate()
+		{
+			orig_path=$1
+			new_path=$2
+			modules=$(dir $orig_path)
+			for module in $modules
+			do
+				orig_module=$orig_path/$module
+				new_module=$new_path/$module
+				# If it's not a git module itself, then it might be a directory containing them. GO MONKEY GO!
+				if git_dir_check_hack $orig_module
+				then
+					# Teh recursion
+					echo "[ Submodule \"$module\" ]"
+					$bin_path $recurse_flags $orig_module $new_module
+				else
+					# Recurse directory
+					( modulate $orig_module $new_module )
+				fi
+				# See if it's a git module
+			done
+		}
+
+		modulate $orig_modules $new_modules
+	elif test -e "$orig_workdir/.gitmodules" -a -z "$bare"
+	then
+		echo "[ Supermodule ] Applying $bin to submodules for $orig_workdir"
+		# Checkout new working directories
+		list_flags=""
+		if test -n "$constrain"
+		then
+			list_flags="--constrain"
+		fi
+
+		modules="$(cd $orig_workdir && git submodule-ext list $list_flags)"
 		for module in $modules
 		do
-			orig_module=$orig_path/$module
-			new_module=$new_path/$module
-			# If it's not a git module itself, then it might be a directory containing them. GO MONKEY GO!
-			if git_dir_check_hack $orig_module
-			then
-				# Teh recursion
-				$bin_path --bare $recurse_flags $orig_module $new_module
-			else
-				# Other recursion
-				echo "[ Submodule \"$module\" ]"
-				( modulate $orig_module $new_module )
-			fi
-			# See if it's a git module
+			orig_module=$orig_workdir/$module
+			new_module=$new_workdir/$module
+			(
+				if cd $orig_module && test -d $(git rev-parse --git-dir)
+				then
+					$bin_path $recurse_flags $orig_module $new_module
+				fi
+			)
 		done
-	}
-
-	modulate $orig_modules $new_modules
+	fi
 fi
 
 # copy the HEAD from the original repository as a default branch
