@@ -934,7 +934,7 @@ cmd_config_sync() {
 
 config_sync_iter() {
 	name="$sm_path"
-	if test -d "$sm_path/.git"
+	if test -e "$sm_path/.git"
 	then
 		cd "$sm_path"
 		# Just overwrite everything in .gitmodules
