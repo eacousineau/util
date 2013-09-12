@@ -33,19 +33,19 @@ _git_submodule-ext ()
 
 	case "$subcommand,$cur,$prev" in
 	    branch,--*,checkout)
-		__git_comp "$all_opts"
+		__gitcomp "$all_opts"
 		;;
 	    branch,-*,checkout)
-		__git_comp "$all_opts_short"
+		__gitcomp "$all_opts_short"
 		;;
 	    branch,*,checkout)
 		_git_checkout
 		;;
 	    branch,--*,write)
-		__git_comp "$all_opts"
+		__gitcomp "$all_opts"
 		;;
 	    branch,-*,write)
-		__git_comp "$all_opts_short"
+		__gitcomp "$all_opts_short"
 		;;
 	    branch,*,write)
 		COMPREPLY=()
