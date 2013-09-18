@@ -541,7 +541,7 @@ cmd_refresh()
 			-c|--constrain)
 				constrain=1
 				;;
-			-c|-r)
+			-r|--recursive)
 				foreach_flags="$foreach_flags $1"
 				;;
 			-n|--dry-run)
