@@ -20,7 +20,7 @@ shopt -s xpg_echo
 dashless=$(basename "$0" | sed -e 's/-/ /')
 OPTIONS_SPEC=
 
-USAGE='[list | branch | set-url | refresh | config-sync]'
+USAGE='[list | branch | set-url | refresh | config-sync | gitdir]'
 
 USAGE_list="\
 $dashless list [-c | --constrain]
@@ -93,6 +93,19 @@ and url. Useful for making sure submodules added via direct clone or git-new-wor
     --remote REMOTE    Use specified remote when retrieving URL
     -B, --no-branch    Do not write branch in .gitmodules file (includes branch by default)
     --pre-clean        Remove .gitmodules file before writing (to re-sort, update, etc.)
+"
+
+USAGE_gitdir="\
+$dashless gitdir [independent | submodule]
+    utility for managing gitdir
+    subcommands
+      independent
+        Move \$GIT_DIR into local directory of repository if it is not already there. Useful for \
+when you're moving submodules. Execute inside submodule.
+      submodule [foreach-options]
+        NOT IMPLEMENTED
+        For each submodule, move \$GIT_DIR into \$toplevel/.git/modules/\$path and adjust the gitfile
+accordingly.
 "
 
 LONG_USAGE="See https://github.com/eacousineau/util/blob/master/SUBMODULES.md for some tips on using."
@@ -957,11 +970,120 @@ config_sync_iter() {
 	fi
 }
 
+# Return relative path of $1 with respect to $2
+# Adapted from `git-submodule.sh`
+rel_path()
+{
+    test $# -eq 2 || { echo "Must supply two paths" >&2; return 1; }
+    target=$1
+    # Add trailing slash, otherwise it won't be robust to common prefixes
+    # that don't begin with a /
+    base=$2/
+
+    while test "${target%%/*}" = "${base%%/*}"
+    do
+        target=${target#*/}
+        base=${base#*/}
+    done
+    # Now chop off the trailing '/'s that were added in the beginning
+    target=${target%/}
+    base=${base%/}
+
+    # Turn each leading "*/" component into "../", and strip trailing '/'s
+    rel=$(echo $base | sed -e 's|[^/][^/]*|..|g' | sed -e 's|*/+$||g')
+    if test -n "$rel"
+    then
+        echo $rel/$target
+    else
+        echo $target
+    fi
+}
+
+cmd_gitdir()
+{
+    test $# -eq 0 && usage
+    case $1 in
+        independent)
+            command=independent
+            shift
+            ;;
+        submodule)
+            command=submodule
+            shift
+            ;;
+        *)
+            usage
+            ;;
+    esac
+
+    cmd_gitdir_$command "$@"
+}
+
+cmd_gitdir_independent()
+{
+    cd $(git rev-parse --show-toplevel) || die "Invalid repo"
+    if test -f .git
+    then
+        # Parse gitdir, then move it here
+        src="$(git rev-parse --git-dir)"
+        dest=".git"
+        git config --unset core.worktree
+        rm $dest
+        mv "$src" "$dest"
+        echo "Moved gitdir from '$src' to '$dest'"
+    fi
+}
+
+cmd_gitdir_submodule()
+{
+    foreach_flags=""
+
+    while test $# -ne 0
+    do
+        case $1 in
+            -r|--recursive|-c|--constrain)
+                foreach_flags="$foreach_flags $1"
+                ;;
+            -h|--help)
+                echo "$USAGE_gitdir"
+                exit 0
+                ;;
+            --*)
+                usage
+                ;;
+            *)
+                break
+                ;;
+        esac
+        shift
+    done
+
+    cmd_foreach $foreach_flags cmd_gitdir_submodule_iter
+}
+
+cmd_gitdir_submodule_iter()
+{
+    if test -d .git
+    then
+        src="$(pwd)"
+        dest="$(cd $toplevel && cd $(git rev-parse --git-dir) && pwd)/modules/$path"
+
+        test -d "$dest" && die "Target module dir already exists: $dest"
+        echo "Moving '$src/.git' to '$dest'"
+        mv $src/.git $dest
+
+        gitdir_path=$(rel_path "$dest" "$src")
+        echo "gitdir: $gitdir_path" > .git
+
+        GIT_WORK_TREE=. git config core.worktree "$(rel_path "$src" "$dest")"
+    fi
+}
+
 command=
 while test $# != 0 && test -z "$command"
 do
 	case "$1" in
-	foreach | refresh | branch | list)
+	foreach | refresh | branch | list | gitdir)
 		command=$1
 		;;
 	set-url)

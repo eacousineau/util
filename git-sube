@@ -4,7 +4,7 @@
 
 _git_submodule-ext ()
 {
-    local subcommands="branch config-sync foreach list refresh set-url womp"
+    local subcommands="branch config-sync foreach list refresh set-url womp gitdir"
     local subcommand="$(__git_find_on_cmdline "$subcommands")"
     if [ -z "$subcommand" ]; then
 	case "$cur" in
@@ -23,6 +23,7 @@ _git_submodule-ext ()
 	local foreach_posix_opts="-c -i -k -p -r -t"
 	local set_url_opts="--remote"
 	local set_url_subcommands="config repo super"
+	local gitdir_subcommands="independent submodule"
 	local refresh_opts="
 			--clear --dry-run --force --no-fetch --no-sync
 			--no-top-level-merge --no-track --remote --reset
@@ -104,6 +105,17 @@ _git_submodule-ext ()
     set-url,*,*)
 		__gitcomp "$set_url_subcommands"
 		;;
+
+	gitdir,--*,submodule)
+		__gitcomp "$foreach_opts"
+		;;
+	gitdir,-*,submodule)
+		__gitcomp "$foreach_posix_opts"
+		;;
+	gitdir,*,*)
+		__gitcomp "$gitdir_subcommands"
+		;;
+		
     refresh,--*,*)
 		__gitcomp "$refresh_opts $foreach_opts $all_opts"
 		;;
