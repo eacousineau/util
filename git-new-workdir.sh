@@ -345,6 +345,6 @@ then
 		else
 			modules=
 		fi
-		git submodule update --init --recursive -- $modules
+		git submodule update --init --recursive --checkout -- $modules
 	fi
 fi
