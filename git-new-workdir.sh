@@ -80,6 +80,20 @@ do
 	shift
 done
 
+if test -n "$show_orig"
+then
+    if test $# -ne 1
+    then
+        usage
+    fi
+else
+    if test $# -lt 2 || test $# -gt 3
+    then
+        usage
+    fi
+fi
+
+
 get_git_dir()
 {
 	( cd $1 && git rev-parse --git-dir ) 2>/dev/null 
@@ -200,11 +214,6 @@ then
 	orig_workdir=$(git-new-workdir --show-orig "$orig_workdir") || die "\tCould not resolve original directory"
 	echo "\tResolving to original workdir: $orig_workdir"
 	get_orig_gitdir
-fi
-
-if test $# -lt 2 || test $# -gt 3
-then
-	usage
 fi
 
 new_workdir=$2
