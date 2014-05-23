@@ -41,6 +41,8 @@ And extensions:
 	*	`foreach` - Modified to allow more flexible iteration: post-order, with top-level module, and constrained. Constrained iteration is done by using a list specified in `scm.focusGroup` in `$GIT_DIR/config`
 	*	`branch write`, `branch checkout` - Record and checkout the branch your submodules are on, recorded in `.gitmodules`. You can specify `foreach` options, including `--constrain`. If submodule does not have a branch, `branch checkout` will do nothing.
 	*	`refresh` - Makes sure that your submodules are correctly checked out and up to date with remote repos, including checking out the branches specified in `.gitmodules`. **NOTE**: This is intended for development. If you write all of your submodule's branches, you may update some of your submodules further than you want.
+	*	`config-sync` - Synchronize `.gitmodules` with the submodules currently in your index.
+	*	`set-url` - Like `git submodule sync`, but with more fine-grained control over how the URLs are set.
 
 # Practices
 
@@ -66,9 +68,19 @@ To recursively clone another person's supermodule
 
 Afterwards, restore original urls, then add the direct clone url
 
-	git remote add bobby "$(git config remote.origin.url)"
-	git submodule sync --recursive
-	git sube set-url -r --remote bobby base
+	remote=local
+	git remote add $remote "$(git config remote.origin.url)"
+	git checkout -- .gitmodules
+	git sube set-url -r --remote origin repo -g
+	git sube set-url -r --remote $remote super
+
+# Adding / Removing Submodules and using `config-sync`
+
+With `config-sync`, you can move submodules around, just add the repositories to `git` (without using `git submodule add`), rename them, etc, and then re-synchronize `.gitmodules` with the following command:
+
+	git sube config-sync --pre-clean
+
+This will first clear out `.gitmodules`, add all staged submodules, and for each submodule, note its current remote (the first one listed in `.git/config` I believe), and its current branch.
 
 ## Their Branches
 
