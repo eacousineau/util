@@ -220,7 +220,7 @@ new_workdir=$2
 branch=$3
 
 # don't recreate a workdir over an existing repository
-orig_workdir_abs="$(cd $orig_workdir && pwd)"
+orig_workdir_abs="$(cd $orig_workdir && git rev-parse --show-toplevel)"
 death_hint=""
 if test "$new_workdir" != "${new_workdir%/}"
 then
