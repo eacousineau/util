@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# TODO(eric.cousineau): Replace this with `git worktree`, once it's been vetted to be similar.
+# @ref https://git-scm.com/docs/git-worktree
+
 # update-head - How to update to a detached head?
 
 bin_path=$0
@@ -261,7 +264,7 @@ do
 		mkdir -p "$(dirname "$new_gitdir/$x")"
 		;;
 	esac
-	ln -s "$orig_gitdir/$x" "$new_gitdir/$x"
+	ln -sr "$orig_gitdir/$x" "$new_gitdir/$x"
 done
 
 # Add in quick file that points to original work dir
