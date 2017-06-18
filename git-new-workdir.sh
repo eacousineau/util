@@ -15,6 +15,7 @@ git-new-workdir --show-orig <repository>
 bare                 checkout as a bare git repository
 link-head            link 'HEAD' file as well (useful for tracking stuff as submodules)
 no-checkout          don't checkout the files (useful for submodules)
+f,force 				 overwrite if directory already exists (for repair)
 
  Management
 show-orig            print original repo's directory
@@ -49,6 +50,7 @@ link_head=
 show_orig=
 update_config=
 update_head=
+force=
 no_checkout=
 
 recurse_flags=
@@ -71,6 +73,8 @@ do
 		link_head=1;;
 	--show-orig)
 		show_orig=1;;
+	-f|--force)
+		force=1;;
 	--update-config)
 		update_config=1;;
 	--update-head)
@@ -235,7 +239,10 @@ else
 	death_hint=" (did you forget the trailing '/' ?)"
 fi
 
-test -e "$new_workdir" && die "New workdir '$new_workdir' already exists$death_hint"
+if test -z "$force"
+then
+	test -e "$new_workdir" && die "New workdir '$new_workdir' already exists$death_hint"
+fi
 
 get_new_gitdir
 
